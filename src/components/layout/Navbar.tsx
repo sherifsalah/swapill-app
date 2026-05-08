@@ -4,7 +4,7 @@ import { MessageSquare, LayoutDashboard, Compass, Info, User, LogOut, Menu, X, L
 import { cn } from "../../lib/utils";
 import React, { useState, useEffect } from "react";
 import { supabase } from "../../config/supabase";
-import { useAuth } from "../../App";
+import { useAuth } from "../../contexts/AuthContext";
 import { useUserProfile } from "../../contexts/UserProfileContext.tsx";
 import toast from 'react-hot-toast';
 import IncomingRequests from "../IncomingRequests";

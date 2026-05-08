@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../config/supabase';
-import { useAuth } from '../App';
+import { useAuth } from './AuthContext';
 
 interface UserProfile {
   id: string;

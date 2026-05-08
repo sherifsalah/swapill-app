@@ -4,7 +4,7 @@ import { Menu, X } from 'lucide-react';
 import GlobalSidebar from './GlobalSidebar';
 import Header from './Header';
 import LogoutModal from '../shared/LogoutModal';
-import { useAuth } from '../../App';
+import { useAuth } from '../../contexts/AuthContext';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
 // User Avatar Component for Mobile Header

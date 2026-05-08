@@ -12,7 +12,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import { useAuth } from '../../App';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface NavItem {
   icon: React.ComponentType<{ className?: string }>;

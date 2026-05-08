@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { User, LogOut, Menu, X } from 'lucide-react';
-import { useAuth } from '../../App';
+import { useAuth } from '../../contexts/AuthContext';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
 // Modern Avatar Component for Header

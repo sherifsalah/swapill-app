@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 
 import { supabase } from '../config/supabase';
 
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 
 import { useUserProfile } from '../contexts/UserProfileContext.tsx';
 

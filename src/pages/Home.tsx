@@ -6,7 +6,7 @@ import { SKILLS, USERS } from "../data/mockData";
 import SkillCard from "../components/shared/SkillCard";
 import { useInView } from "react-intersection-observer";
 import CountUp from "react-countup";
-import { useAuth } from "../App";
+import { useAuth } from "../contexts/AuthContext";
 
 // Animated Stat Component
 interface AnimatedStatProps {

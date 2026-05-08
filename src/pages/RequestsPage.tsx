@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Check, X, UserPlus, Mail, Search, Filter } from 'lucide-react';
 import { supabase } from '../config/supabase';
-import { useAuth } from '../App';
+import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 interface SwapRequest {
