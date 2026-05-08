@@ -1418,7 +1418,7 @@ export default function Profile() {
 
         {/* Loading indicator for skills and bio */}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-32">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12 mt-8 md:mt-16 lg:mt-32">
 
           <div className="space-y-8">
 
@@ -2214,7 +2214,7 @@ export default function Profile() {
 
 
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mt-32">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12 mt-8 md:mt-16 lg:mt-32">
 
         {/* Left Column: About */}
 
@@ -2284,7 +2284,7 @@ export default function Profile() {
 
                     <Mail className="w-4 h-4 text-slate-500" />
 
-                    {currentUser.email || 'No email'}
+                    {currentUser.name || 'Expert Member'}
 
                  </div>
 

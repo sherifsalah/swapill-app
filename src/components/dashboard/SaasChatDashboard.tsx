@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../../App';
+import { useUserProfile } from '../../contexts/UserProfileContext';
 import { 
   Home, 
   Compass, 
@@ -50,6 +52,10 @@ const SaasChatDashboard: React.FC = () => {
   const [messageInput, setMessageInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [activeNav, setActiveNav] = useState('chat');
+  
+  // Get real profile data
+  const { user } = useAuth();
+  const { currentUser, loading: profileLoading } = useUserProfile();
 
   const conversations: Conversation[] = [
     {

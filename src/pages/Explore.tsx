@@ -525,8 +525,8 @@ export default function Explore() {
           // Transform new profile to match expected format
           const transformedProfile = {
             id: newProfile.id,
-            name: newProfile.full_name || 'Unknown User',
-            initials: (newProfile.full_name || 'Unknown User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+            name: newProfile.full_name || 'Expert Member',
+            initials: (newProfile.full_name || 'Expert Member').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
             avatar_url: newProfile.avatar_url || null,
             bio: newProfile.bio || 'No bio available',
             skills: newProfile.skills || [],
@@ -664,8 +664,8 @@ export default function Explore() {
           
           return {
             id: profile.id,
-            name: profile.full_name || 'Unknown User',
-            initials: (profile.full_name || 'Unknown User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+            name: profile.full_name || 'Expert Member',
+            initials: (profile.full_name || 'Expert Member').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
             avatar_url: profile.avatar_url || null,
             bio: profile.bio || 'No bio available',
             skills: userSkills,
@@ -899,7 +899,7 @@ export default function Explore() {
 
   
   return (
-    <div className="min-h-screen pt-8 pb-24 max-w-7xl mx-auto px-6">
+    <div className="w-full max-w-7xl mx-auto px-6 py-8">
       {/* Hero Header */}
       <div className="text-center mb-12">
         <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-violet-600 bg-clip-text text-transparent">
@@ -956,7 +956,7 @@ export default function Explore() {
 
       {/* Unified Loading State - Show 8 Skeleton Cards */}
       {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <SkeletonCard key={i} />
           ))}
@@ -971,7 +971,7 @@ export default function Explore() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6"
           >
             {filteredProfiles.map((user, index) => {
               const topSkill = user.topSkill;
@@ -989,14 +989,14 @@ export default function Explore() {
                     <div className="relative">
                       {/* Use standardized ModernAvatar component */}
                       <ModernAvatar 
-                        name={user.name || 'User'} 
+                        name={user.name || 'Expert Member'} 
                         size="medium" 
                         avatarUrl={user.avatar_url} 
                       />
                       <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-slate-950" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Unknown User'}</h3>
+                      <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Expert Member'}</h3>
                       <div className="flex items-center gap-1 text-sm text-slate-400">
                         {(user.swaps || 0) > 0 && user.rating && user.rating > 0 && user.name !== 'Maryam' && user.name !== 'yousefkh123' ? (
                           <span> ⭐ {user.rating.toFixed(1)} • {user.swaps || 0} swaps</span>

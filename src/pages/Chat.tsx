@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Image, Paperclip, MoreVertical, Phone, Video, Search, MessageCircle, Plus, Smile, Users, Wifi, WifiOff, Mic } from "lucide-react";
+import { Send, Image, Paperclip, MoreVertical, Phone, Video, Search, MessageCircle, Plus, Smile, Users, Wifi, WifiOff, Mic, ArrowLeft } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "motion/react";
 import { supabase } from '../config/supabase';
@@ -460,9 +460,9 @@ export default function Chat() {
 
   return (
     <div className="flex h-[calc(100vh-64px)] w-full overflow-hidden bg-transparent">
-      <div className="flex-1 overflow-hidden flex">
-        {/* Sidebar - Professional Design */}
-        <aside className="w-80 h-full bg-slate-800/50 backdrop-blur-md border-r border-purple-500/10 flex flex-col pt-0">
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+        {/* Sidebar - Hidden on mobile when chat is open, visible on desktop */}
+        <aside className={`${selectedUser ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 h-full lg:h-full bg-slate-800/50 backdrop-blur-md border-r border-purple-500/10 flex flex-col pt-0`}>
         {/* Sidebar Header */}
         <div className="p-5 border-b border-slate-700/50">
           <div className="flex items-center justify-between mb-5">
@@ -604,12 +604,19 @@ export default function Chat() {
         </div>
       </aside>
 
-      {/* Chat Window - Takes remaining space */}
-      <main className="flex-1 h-full flex flex-col bg-slate-900/30 backdrop-blur-sm">
+      {/* Chat Window - Takes remaining space, full width on mobile */}
+      <main className="flex-1 h-full flex flex-col bg-slate-900/30 backdrop-blur-sm w-full">
         {selectedUser ? (
           <>
             {/* Chat Header - Compact */}
             <header className="h-12 border-b border-slate-700/30 bg-slate-800/30 backdrop-blur-md flex items-center px-4">
+              {/* Mobile Back Button */}
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="lg:hidden p-1.5 rounded-lg hover:bg-slate-700/50 text-gray-300 transition-colors mr-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
               <div className="flex items-center gap-3 flex-1">
                 <ModernAvatar 
                   name={selectedUser.full_name || 'User'} 

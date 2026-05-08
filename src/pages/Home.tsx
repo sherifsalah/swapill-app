@@ -69,7 +69,7 @@ function AnimatedStat({ stat, delay }: AnimatedStatProps) {
 
 export default function Home() {
   return (
-    <div className="flex flex-col w-full">
+    <div className="w-full max-w-7xl mx-auto">
       {/* Hero Section */}
       <section className="relative min-h-[90vh] flex items-center pt-8 overflow-hidden">
         {/* Background Blobs */}
@@ -186,7 +186,7 @@ export default function Home() {
       </section>
 
       {/* Featured Skills Preview */}
-      <section className="py-24 max-w-7xl mx-auto px-6">
+      <section className="py-24 max-w-7xl mx-auto px-4">
         <div className="flex flex-col md:flex-row items-end justify-between mb-12 gap-6">
           <div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Trending Skills</h2>
@@ -197,13 +197,13 @@ export default function Home() {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 lg:gap-8 w-full">
           {/* Card 1: Full-Stack React Development - The Tech Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="glass-card p-6 hover:shadow-[0_0_20px_rgba(6,182,212,0.4)] transition-all duration-300 relative group"
+            className="glass-card p-6 hover:shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all duration-300 relative group h-full"
           >
             {/* New/Live Badge */}
             <div className="absolute -top-2 -left-2 z-10">
@@ -239,7 +239,7 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="glass-card p-6 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 relative group"
+            className="glass-card p-6 hover:shadow-[0_0_20px_rgba(16,185,129,0.4)] transition-all duration-300 relative group h-full"
           >
             {/* Trending Badge */}
             <div className="absolute -top-2 -right-2 z-10">

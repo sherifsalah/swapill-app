@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { supabase } from '../config/supabase';
 import { User } from '@supabase/supabase-js';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   email: string;
   full_name?: string;

@@ -460,7 +460,7 @@ export default function Dashboard() {
 
           
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
 
              <div className="glass-card p-6 bg-gradient-to-br from-purple-500/5 to-transparent">
 

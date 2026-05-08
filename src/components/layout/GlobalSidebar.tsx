@@ -23,9 +23,11 @@ interface NavItem {
 
 interface GlobalSidebarProps {
   setIsLogoutModalOpen: (open: boolean) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export default function GlobalSidebar({ setIsLogoutModalOpen }: GlobalSidebarProps) {
+export default function GlobalSidebar({ setIsLogoutModalOpen, isOpen, onClose }: GlobalSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
@@ -42,7 +44,13 @@ export default function GlobalSidebar({ setIsLogoutModalOpen }: GlobalSidebarPro
 
   
   return (
-    <nav className="fixed left-0 top-0 w-56 h-screen bg-[#0f172a] flex flex-col py-6 border-r border-slate-800 z-50">
+    <>
+      {/* Mobile Sidebar Overlay */}
+      <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />
+      
+      <nav className={`fixed left-0 top-0 h-screen bg-[#0f172a] flex flex-col py-6 border-r border-slate-800 z-50 w-64 transform transition-transform duration-300 ease-in-out ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      } lg:translate-x-0 lg:relative lg:inset-0 lg:z-auto`}>
       {/* Logo */}
       <div className="mb-8">
         <Link to="/" className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-800/50 transition-colors group">
@@ -105,5 +113,6 @@ export default function GlobalSidebar({ setIsLogoutModalOpen }: GlobalSidebarPro
         )}
       </div>
     </nav>
+    </>
   );
 }

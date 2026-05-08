@@ -4,8 +4,17 @@ import { User, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '../../App';
 import { useUserProfile } from '../../contexts/UserProfileContext';
 
-// Modern Avatar Component for Header
+// User Avatar Component for Header
 function UserAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
+  const getInitials = (fullName: string) => {
+    return fullName
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const target = e.target as HTMLImageElement;
     target.style.display = 'none';
@@ -13,7 +22,7 @@ function UserAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
     if (parent && !parent.querySelector('.fallback-circle')) {
       const fallback = document.createElement('div');
       fallback.className = 'fallback-circle absolute inset-0 flex items-center justify-center bg-gradient-to-br from-blue-500 to-pink-500 rounded-full text-white font-bold text-sm';
-      fallback.textContent = name.charAt(0).toUpperCase();
+      fallback.textContent = getInitials(name);
       parent.appendChild(fallback);
     }
   };
@@ -23,7 +32,7 @@ function UserAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
     target.style.opacity = '1';
   };
 
-  if (avatarUrl) {
+  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
     return (
       <div className="relative">
         <img 
@@ -40,12 +49,14 @@ function UserAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
 
   return (
     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-pink-500 flex items-center justify-center border-2 border-white/20">
-      <span className="text-white font-bold text-sm">{name.charAt(0).toUpperCase()}</span>
+      <span className="text-white font-bold text-sm">
+        {getInitials(name)}
+      </span>
     </div>
   );
 }
 
-export default function MinimalHeader({ conversationsCount = 0 }: { conversationsCount?: number }) {
+export default function Header() {
   const { user, loading } = useAuth();
   const { currentUser: userProfile } = useUserProfile();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -56,9 +67,16 @@ export default function MinimalHeader({ conversationsCount = 0 }: { conversation
     window.dispatchEvent(event);
   };
 
+  const displayName = userProfile?.name || user?.email?.split('@')[0] || 'User';
+  const avatarUrl = userProfile?.avatar_url;
+
   return (
     <>
-      <header className="h-16 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800 px-6 flex items-center justify-end">
+      <header className="h-16 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800 px-6 flex items-center justify-between">
+        {/* Logo/Brand - Empty */}
+        <div className="flex items-center">
+        </div>
+
         {/* User Actions */}
         <div className="flex items-center gap-4">
           {/* Mobile Menu Button */}
@@ -68,6 +86,7 @@ export default function MinimalHeader({ conversationsCount = 0 }: { conversation
           >
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
+          
           {user ? (
             <div className="flex items-center gap-3">
               <Link 
@@ -75,11 +94,11 @@ export default function MinimalHeader({ conversationsCount = 0 }: { conversation
                 className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
               >
                 <UserAvatar 
-                  avatarUrl={userProfile?.avatar_url} 
-                  name={userProfile?.name || user.email?.split('@')[0] || 'User'} 
+                  avatarUrl={avatarUrl}
+                  name={displayName}
                 />
                 <span className="text-sm font-medium text-gray-200 hidden sm:block">
-                  {userProfile?.name || user.email?.split('@')[0]}
+                  {displayName}
                 </span>
               </Link>
               <button 
@@ -145,14 +164,9 @@ export default function MinimalHeader({ conversationsCount = 0 }: { conversation
                     <Link
                       to="/chat"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="block px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors relative"
+                      className="block px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
                     >
                       Chat
-                      {conversationsCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                          {conversationsCount}
-                        </span>
-                      )}
                     </Link>
                     <Link
                       to="/dashboard"

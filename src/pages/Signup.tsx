@@ -45,13 +45,13 @@ export default function Signup() {
     try {
       console.log('Attempting sign up with:', email);
       
-      // Sign up with Supabase - CRITICAL: Call signUp FIRST to ensure race condition works
+      // Sign up with Supabase - CRITICAL: Use full_name to match trigger
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name: name
+            full_name: name  // MUST be 'full_name' to match trigger
           }
         }
       });

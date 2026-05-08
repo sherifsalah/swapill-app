@@ -3,7 +3,7 @@ import { Github, Linkedin, Twitter } from "lucide-react";
 
 export default function Footer() {
   return (
-    <footer className="border-t border-white/5 bg-slate-950/50 backdrop-blur-sm py-16">
+    <footer className="border-t border-white/5 bg-slate-950/50 backdrop-blur-sm py-10">
       <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-12">
         <div className="col-span-1 md:col-span-1">
           <Link to="/" className="flex items-center gap-2 mb-6">
@@ -66,13 +66,13 @@ export default function Footer() {
         <div>
           <h4 className="text-white font-bold mb-6">Newsletter</h4>
           <p className="text-gray-300 text-sm mb-4">Get weekly updates on popular skills and expert stories.</p>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input 
               type="email" 
               placeholder="Email address" 
-              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-purple-500 flex-grow"
+              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-purple-500 flex-grow w-full sm:w-auto"
             />
-            <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-500/25">
+            <button className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#667eea] to-[#764ba2] text-white font-semibold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-purple-500/25 whitespace-nowrap">
               Join
             </button>
           </div>
