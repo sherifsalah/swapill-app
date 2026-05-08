@@ -604,16 +604,10 @@ export default function Explore() {
   // Fetch real users from Supabase
   useEffect(() => {
     const fetchRealUsers = async () => {
-      if (!currentUser?.id) {
-        console.log('No current user, skipping fetch');
-        setRealUsers([]);
-        setIsLoading(false);
-        return;
-      }
-
-    console.log('=== FETCH DEBUG ===');
-    console.log('Current User ID:', currentUser?.id);
-    console.log('Current User:', currentUser);
+      // Allow fetching for both logged in and guest users
+      console.log('=== FETCH DEBUG ===');
+      console.log('Current User ID:', currentUser?.id || 'Guest');
+      console.log('Current User:', currentUser || 'Guest user');
     
     setIsLoading(true);
     
@@ -651,8 +645,8 @@ export default function Explore() {
           const userSkills = profile.skills || [];
           const firstSkill = userSkills?.[0];
           
-          // Fetch relationship status for this user
-          const status = await fetchRelationshipStatus(profile.id);
+          // Fetch relationship status for this user (only if logged in)
+          const status = currentUser?.id ? await fetchRelationshipStatus(profile.id) : 'none';
           
           console.log(`Transforming profile:`, {
             full_name: profile.full_name,
@@ -717,9 +711,9 @@ export default function Explore() {
     console.log('=== FILTER DEBUG ===');
     console.log('Active Category:', activeCategory);
     console.log('Real Users Count:', realUsers.length);
-    console.log('Current User ID:', currentUser?.id);
+    console.log('Current User ID:', currentUser?.id || 'Guest');
 
-    // Exclude current user from Explore page
+    // Exclude current user from Explore page (only if logged in)
     if (currentUser?.id) {
       filtered = filtered.filter(user => user.id !== currentUser.id);
       console.log('Filtered Users Count after excluding current user:', filtered.length);
@@ -1043,6 +1037,19 @@ export default function Explore() {
                 {/* Action Button */}
                 <div className="mt-auto">
                   {(() => {
+                    // If user is not logged in, show sign up button
+                    if (!currentUser?.id) {
+                      return (
+                        <button
+                          onClick={() => navigate('/signup')}
+                          className="w-full px-4 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-400 hover:to-emerald-500 transition-all duration-300 flex items-center justify-center gap-2"
+                        >
+                          <User className="w-4 h-4" />
+                          <span>Sign up to connect</span>
+                        </button>
+                      );
+                    }
+                    
                     // Check if user is in friends list from context
                     const isFriend = friends.includes(user.id);
                     

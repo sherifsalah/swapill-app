@@ -76,7 +76,7 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0f172a]">
       {/* Mobile Header - Only shows on small screens */}
-      <header className="lg:hidden flex items-center justify-between p-4 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800">
+      <header className="lg:hidden flex items-center justify-between p-4 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800 relative z-40">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
@@ -100,13 +100,7 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
         </div>
       </header>
 
-      {/* Mobile Sidebar Overlay */}
-      {mobileSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setMobileSidebarOpen(false)}
-        />
-      )}
+      {/* Mobile Sidebar Overlay - Handled in GlobalSidebar component */}
       
       {/* Global Sidebar - Hidden on mobile, visible on desktop */}
       <GlobalSidebar 
@@ -116,14 +110,14 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden relative z-0">
         {/* Desktop Header - Only shows on large screens */}
-        <header className="hidden lg:block">
+        <header className="hidden lg:block relative z-10">
           <Header />
         </header>
         
         {/* Page Content */}
-        <main className={`flex-1 overflow-y-auto w-full ${
+        <main className={`flex-1 overflow-y-auto w-full relative z-0 ${
           isChatPage 
             ? 'p-0' 
             : 'p-4'

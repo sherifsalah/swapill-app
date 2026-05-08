@@ -1,11 +1,12 @@
 import React from "react";
 import { motion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Star, Users, Briefcase, Zap, Shield, Play, Code, Palette, Music, FileText, Repeat, TrendingUp, Layers, Terminal, Megaphone, Languages, GraduationCap, TrendingUp as TrendingIcon } from "lucide-react";
 import { SKILLS, USERS } from "../data/mockData";
 import SkillCard from "../components/shared/SkillCard";
 import { useInView } from "react-intersection-observer";
 import CountUp from "react-countup";
+import { useAuth } from "../App";
 
 // Animated Stat Component
 interface AnimatedStatProps {
@@ -68,6 +69,17 @@ function AnimatedStat({ stat, delay }: AnimatedStatProps) {
 }
 
 export default function Home() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleStartSwapping = () => {
+    if (user) {
+      navigate('/explore');
+    } else {
+      navigate('/signup');
+    }
+  };
+
   return (
     <div className="w-full max-w-7xl mx-auto">
       {/* Hero Section */}
@@ -94,10 +106,13 @@ export default function Home() {
               Connect with others, swap skills, and grow together. No money needed, just passion and knowledge.
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link to="/signup" className="btn-primary group flex items-center gap-2">
+              <button 
+                onClick={handleStartSwapping}
+                className="btn-primary group flex items-center gap-2"
+              >
                 Start Swapping
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
+              </button>
               <Link to="/explore" className="btn-secondary flex items-center gap-2">
                 Explore Skills
               </Link>
