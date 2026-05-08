@@ -49,8 +49,8 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [localConversationsCount, setLocalConversationsCount] = useState(0);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { user } = useAuth();
-  const { currentUser: userProfile } = useUserProfile();
+  const { user, loading: authLoading } = useAuth();
+  const { currentUser: userProfile, loading: profileLoading } = useUserProfile();
 
   // Listen for logout modal events and conversations count updates
   useEffect(() => {
@@ -72,6 +72,18 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
   }, []);
 
   const isChatPage = location.pathname === '/chat';
+  
+  // Show loading state if auth or profile is still loading
+  if (authLoading || profileLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#0f172a]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+          <p className="text-white text-lg">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="flex flex-col lg:flex-row h-screen bg-[#0f172a]">

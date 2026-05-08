@@ -90,13 +90,22 @@ export default function Signup() {
           console.error('Auto sign in error:', signInError);
           toast.error('Account created but automatic login failed. Please try logging in manually.');
         } else {
-          console.log('Auto sign in successful - redirecting to profile');
-          // INSTANT REDIRECT to profile page
-          navigate('/profile');
+          console.log('Auto sign in successful - waiting for profile creation before redirect');
+          
+          // Wait for database trigger to create profile record
+          setTimeout(async () => {
+            // Refresh session to get latest user data
+            const { data: { session } } = await supabase.auth.getSession();
+            
+            if (session?.user) {
+              console.log('Session confirmed, navigating to profile');
+              navigate('/profile');
+            } else {
+              console.error('No session found after delay');
+              toast.error('Login successful. Please try refreshing the page.');
+            }
+          }, 2000); // 2 second delay to allow database trigger
         }
-        
-        // Redirect to profile page immediately
-        navigate('/profile');
          
       } else {
         toast.error('No user data returned');

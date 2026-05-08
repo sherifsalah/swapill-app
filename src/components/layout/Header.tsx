@@ -78,17 +78,19 @@ export default function Header() {
         </div>
 
         {/* User Actions */}
-        <div className="flex items-center gap-4">
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+        <div className="flex items-center gap-2 md:gap-4">
+          {/* Mobile Menu Button - Only show if user is logged in */}
+          {user && (
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          )}
           
           {user ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3">
               <Link 
                 to="/profile" 
                 className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
@@ -103,7 +105,7 @@ export default function Header() {
               </Link>
               <button 
                 onClick={handleLogout}
-                className="p-2 rounded-full h-10 w-10 flex items-center justify-center bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-all"
+                className="hidden md:flex p-2 rounded-full h-10 w-10 items-center justify-center bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-all"
                 title="Logout"
               >
                 <LogOut className="w-5 h-5" />
@@ -114,16 +116,23 @@ export default function Header() {
               <div className="flex items-center gap-2">
                 <Link 
                   to="/login"
-                  className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 transition-colors"
+                  className="text-xs md:text-sm font-medium text-gray-300 hover:text-white px-2 md:px-4 py-1 md:py-2 transition-colors"
                 >
                   Login
                 </Link>
                 <Link 
                   to="/signup"
-                  className="bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium px-6 py-2 rounded-lg transition-colors"
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs md:text-sm font-medium px-3 md:px-6 py-1 md:py-2 rounded-lg transition-colors"
                 >
                   Sign Up
                 </Link>
+                {/* Mobile Menu Button for Guests */}
+                <button
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
               </div>
             )
           )}
@@ -159,6 +168,24 @@ export default function Header() {
                 >
                   How It Works
                 </Link>
+                {!user && (
+                  <>
+                    <Link
+                      to="/login"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block px-4 py-3 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      to="/signup"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="block px-4 py-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                    >
+                      Sign Up
+                    </Link>
+                  </>
+                )}
                 {user && (
                   <>
                     <Link

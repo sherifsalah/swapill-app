@@ -66,7 +66,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('Auth loading timeout - forcing loading to false');
         setIsInitialLoading(false);
         setLoading(false);
-      }, 3000); // 3 second timeout
+      }, 8000); // 8 second timeout to allow database trigger
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
