@@ -1,10 +1,48 @@
+import React from 'react';
 import { motion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Mail, Lock, ArrowRight, Github, Chrome } from "lucide-react";
+import { supabase } from '../config/supabase';
+import toast from 'react-hot-toast';
 
 export default function Login() {
+  const navigate = useNavigate();
+
+  const handleSignIn = async (e) => {
+    e.preventDefault();
+    
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get('email') as string;
+    const password = formData.get('password') as string;
+
+    try {
+      console.log('Attempting sign in with:', email);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) {
+        console.error('Sign in error:', error);
+        toast.error(error.message);
+        return;
+      }
+
+      console.log('Sign in successful:', data.user?.email);
+      toast.success('Welcome back!');
+      
+      // Use React Router navigate for proper navigation
+      navigate('/explore');
+      
+    } catch (error) {
+      console.error('Unexpected error during sign in:', error);
+      toast.error('An error occurred. Please try again.');
+    }
+  };
+
   return (
-    <div className="min-h-screen pt-20 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen pt-20 flex items-center justify-center p-6 relative overflow-hidden bg-[#0f172a]">
       {/* Background Decals */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-[100px] -z-10" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-[100px] -z-10" />
@@ -22,13 +60,14 @@ export default function Login() {
           <p className="text-slate-400">Continue your swapping journey</p>
         </div>
 
-        <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+        <form className="space-y-6" onSubmit={handleSignIn} autoComplete="off">
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
             <div className="relative group">
                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
                <input 
                 type="email" 
+                name="email"
                 placeholder="name@example.com"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:outline-none focus:border-purple-500 transition-all focus:bg-white/10"
               />
@@ -44,16 +83,18 @@ export default function Login() {
                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-purple-400 transition-colors" />
                <input 
                 type="password" 
+                name="password"
+                autoComplete="current-password"
                 placeholder="********"
                 className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:outline-none focus:border-purple-500 transition-all focus:bg-white/10"
               />
             </div>
           </div>
 
-          <Link to="/dashboard" className="btn-primary w-full flex items-center justify-center gap-2 py-4">
+          <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 py-4">
             Sign In
             <ArrowRight className="w-4 h-4" />
-          </Link>
+          </button>
         </form>
 
         <div className="mt-8 relative">

@@ -1,7 +1,7 @@
 export interface User {
   id: string;
   name: string;
-  avatar: string;
+  avatar_url?: string;
   role: string;
   bio: string;
   email: string;
@@ -22,7 +22,7 @@ export const USERS: User[] = [
   {
     id: '1',
     name: 'Ziad Amr',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ziad',
     role: 'React Developer',
     bio: 'React and TypeScript expert with 5+ years of experience building scalable web applications.',
     email: 'ziad@swapill.app',
@@ -32,7 +32,7 @@ export const USERS: User[] = [
   {
     id: '2',
     name: 'Salma Ezz',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Salma',
     role: 'Python Developer',
     bio: 'Python specialist focusing on data science, machine learning, and backend development.',
     email: 'salma@swapill.app',
@@ -42,7 +42,7 @@ export const USERS: User[] = [
   {
     id: '3',
     name: 'Hany Adel',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hany',
     role: 'Cybersecurity Expert',
     bio: 'Information security specialist with expertise in ethical hacking and network security.',
     email: 'hany@swapill.app',
@@ -52,7 +52,7 @@ export const USERS: User[] = [
   {
     id: '4',
     name: 'Kareem Fouad',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Kareem',
     role: 'Mobile App Developer',
     bio: 'iOS and Android app developer with React Native and Flutter expertise.',
     email: 'kareem@swapill.app',
@@ -62,7 +62,7 @@ export const USERS: User[] = [
   {
     id: '5',
     name: 'Nour El-Sayed',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nour',
     role: 'Guitar Instructor',
     bio: 'Acoustic and electric guitar teacher with 10+ years of performance experience.',
     email: 'nour@swapill.app',
@@ -72,7 +72,7 @@ export const USERS: User[] = [
   {
     id: '6',
     name: 'Youssef Khaled',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Youssef',
     role: 'Piano Teacher',
     bio: 'Classical piano instructor with conservatory training and modern teaching methods.',
     email: 'youssef@swapill.app',
@@ -82,7 +82,7 @@ export const USERS: User[] = [
   {
     id: '7',
     name: 'Mariam Said',
-    avatar: 'https://images.unsplash.com/photo-1580489945148-6d9f4a4d7c0d?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mariam',
     role: 'Music Producer',
     bio: 'Music production specialist with DAW expertise and sound engineering skills.',
     email: 'mariam@swapill.app',
@@ -92,17 +92,17 @@ export const USERS: User[] = [
   {
     id: '8',
     name: 'Omar Tarek',
-    avatar: 'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Omar',
     role: 'Creative Writer',
     bio: 'Fiction writer and storytelling coach with published works and workshop experience.',
     email: 'omar@swapill.app',
     rating: 4.8,
-    completedExchanges: 44,
+    completedExchanges: 47,
   },
   {
     id: '9',
     name: 'Fatima Hassan',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Fatima',
     role: 'Content Strategist',
     bio: 'Content strategy expert with focus on digital marketing and brand storytelling.',
     email: 'fatima@swapill.app',
@@ -112,7 +112,7 @@ export const USERS: User[] = [
   {
     id: '10',
     name: 'Ahmed Mahmoud',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Ahmed',
     role: 'Copywriter',
     bio: 'Professional copywriter specializing in advertising, marketing, and brand messaging.',
     email: 'ahmed@swapill.app',
@@ -122,7 +122,7 @@ export const USERS: User[] = [
   {
     id: '11',
     name: 'Layla Kamel',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Layla',
     role: 'Arabic Poet',
     bio: 'Arabic poetry specialist with classical and contemporary verse expertise.',
     email: 'layla@swapill.app',
@@ -132,7 +132,7 @@ export const USERS: User[] = [
   {
     id: '12',
     name: 'Karim Ali',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Karim',
     role: 'English Tutor',
     bio: 'English conversation expert with business communication and accent training.',
     email: 'karim@swapill.app',
@@ -142,17 +142,17 @@ export const USERS: User[] = [
   {
     id: '13',
     name: 'Mona Zaki',
-    avatar: 'https://images.unsplash.com/photo-1507591064344-4c6ce005b128?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mona',
     role: 'German Teacher',
     bio: 'German language instructor with B1 certification and business German focus.',
     email: 'mona@swapill.app',
     rating: 4.7,
-    completedExchanges: 45,
+    completedExchanges: 42,
   },
   {
     id: '14',
     name: 'Hassan El-Din',
-    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hassan',
     role: 'French Instructor',
     bio: 'French teacher specializing in beginner level and conversational French.',
     email: 'hassan@swapill.app',
@@ -162,7 +162,7 @@ export const USERS: User[] = [
   {
     id: '15',
     name: 'Salma Said',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Salma',
     role: 'Spanish Teacher',
     bio: 'Spanish language expert with Latin American culture and business Spanish.',
     email: 'salma.said@swapill.app',
@@ -172,7 +172,7 @@ export const USERS: User[] = [
   {
     id: '16',
     name: 'Amir Khaled',
-    avatar: 'https://images.unsplash.com/photo-1580489945148-6d9f4a4d7c0d?w=100&h=100&fit=crop&auto=format',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amir',
     role: 'SEO Specialist',
     bio: 'Search engine optimization expert with proven ranking improvement results.',
     email: 'amir@swapill.app',
@@ -182,42 +182,42 @@ export const USERS: User[] = [
   {
     id: '17',
     name: 'Nour Adel',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&auto=format',
-    role: 'Social Media Manager',
-    bio: 'Social media advertising specialist with Facebook, Instagram, and LinkedIn expertise.',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nour',
+    role: 'Italian Teacher',
+    bio: 'Italian language instructor with native fluency and cultural expertise.',
     email: 'nour@swapill.app',
-    rating: 4.9,
-    completedExchanges: 58,
+    rating: 4.6,
+    completedExchanges: 25,
   },
   {
     id: '18',
-    name: 'Youssef Amir',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&auto=format',
-    role: 'Branding Expert',
-    bio: 'Brand identity specialist with logo design and visual storytelling expertise.',
-    email: 'youssef@swapill.app',
-    rating: 4.6,
-    completedExchanges: 26,
+    name: 'Dina Maher',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Dina',
+    role: 'Database Administrator',
+    bio: 'Database management specialist with SQL and NoSQL expertise.',
+    email: 'dina@swapill.app',
+    rating: 4.8,
+    completedExchanges: 19,
   },
   {
     id: '19',
-    name: 'Mariam El-Sherif',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&auto=format',
-    role: 'Public Speaking Coach',
-    bio: 'Public speaking specialist with presentation skills and confidence building techniques.',
-    email: 'mariam@swapill.app',
-    rating: 4.8,
-    completedExchanges: 47,
+    name: 'Bassem Youssef',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bassem',
+    role: 'Network Engineer',
+    bio: 'Network infrastructure and security specialist with cloud computing experience.',
+    email: 'bassem@swapill.app',
+    rating: 4.9,
+    completedExchanges: 33,
   },
   {
     id: '20',
-    name: 'Ahmed Fouad',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&h=100&fit=crop&auto=format',
-    role: 'Time Management Consultant',
-    bio: 'Productivity expert with focus on time management and workflow optimization.',
-    email: 'ahmed@swapill.app',
+    name: 'Rania Samir',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Rania',
+    role: 'Translation Services',
+    bio: 'Professional translator for Arabic, English, and French business communications.',
+    email: 'rania@swapill.app',
     rating: 4.7,
-    completedExchanges: 34,
+    completedExchanges: 28,
   }
 ];
 

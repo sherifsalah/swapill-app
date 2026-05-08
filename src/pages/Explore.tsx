@@ -1,10 +1,62 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Search, Code, Smartphone, Palette, TrendingUp, Globe, PenTool, Music, ChefHat, Sparkles, Camera, Mic, Kanban, User, MessageCircle } from "lucide-react";
+import { Search, Code, Smartphone, Palette, TrendingUp, Globe, PenTool, Music, ChefHat, Sparkles, Camera, Mic, Kanban, User, MessageCircle, Clock, Check, Megaphone, Code2, BarChart3, Languages, Lightbulb } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { USERS, SKILLS } from "../data/mockData";
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabase';
+import { useAuth } from '../App';
+import { useUserProfile } from '../contexts/UserProfileContext.tsx';
+import ProfilePreviewModal from '../components/ProfilePreviewModal';
+
+// Icon mapping function for skill categories
+const getSkillIcon = (category?: string) => {
+  if (!category) return <Lightbulb size={18} />;
+  
+  const lowerCategory = category.toLowerCase();
+  
+  switch (lowerCategory) {
+    case 'marketing':
+    case 'social media':
+      return <Megaphone size={18} />;
+    case 'development':
+    case 'coding':
+    case 'web':
+    case 'mobile':
+      return <Code2 size={18} />;
+    case 'design':
+    case 'ui':
+    case 'ux':
+      return <Palette size={18} />;
+    case 'writing':
+    case 'content':
+      return <PenTool size={18} />;
+    case 'data':
+    case 'analysis':
+      return <BarChart3 size={18} />;
+    case 'languages':
+      return <Languages size={18} />;
+    default:
+      return <Lightbulb size={18} />;
+  }
+};
+
+// Realtime subscription for instant updates
+const useRealtimeProfiles = (onNewProfile: (profile: any) => void) => {
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:profiles')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
+        console.log('New profile detected in realtime:', payload.new);
+        onNewProfile(payload.new);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [onNewProfile]);
+};
 
 // Skill Categories with icons (same as Profile)
 const SKILL_CATEGORIES = [
@@ -35,10 +87,96 @@ const AVATAR_COLORS = [
   'from-orange-500 to-orange-600'
 ];
 
-// Get color based on user name
-const getAvatarColor = (userName: string) => {
-  const hash = userName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+// Get initials from name
+const getInitials = (name: string) => {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+};
+
+// Modern Avatar Component - Same as Chat page
+function ModernAvatar({ name, size = "medium", avatarUrl }: { 
+  name: string; 
+  size?: "small" | "medium" | "large"; 
+  avatarUrl?: string | null; 
+}) {
+  // Use safe fallback utilities
+  const safeName = name || 'Member';
+  const initials = getInitials(safeName);
+  const sizeClasses = { 
+    small: "w-12 h-12 text-sm", 
+    medium: "w-14 h-14 text-base", 
+    large: "w-16 h-16 text-lg" 
+  };
+  
+  // Professional, calm color palette for initials
+  const colors = [
+    'from-slate-600 to-slate-700', 
+    'from-gray-600 to-gray-700', 
+    'from-neutral-600 to-neutral-700', 
+    'from-stone-600 to-stone-700',
+    'from-zinc-600 to-zinc-700'
+  ];
+  const color = colors[safeName ? safeName.charCodeAt(0) % colors.length : 0];
+  
+  // BLOCK dicebear URLs and show colored initials instead
+  if (avatarUrl && avatarUrl.includes('dicebear.com')) {
+    // Force display colored initials for dicebear URLs
+    return (
+      <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
+        {initials}
+      </div>
+    );
+  }
+  
+  // Show real photo only if it's NOT a dicebear URL
+  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
+    return (
+      <div className={`rounded-full overflow-hidden border border-white/20 ${sizeClasses[size]}`}>
+        <img 
+          src={avatarUrl} 
+          alt={safeName} 
+          className="w-full h-full object-cover rounded-full aspect-square" 
+          onError={(e) => {
+            // Fallback to initials if image fails to load
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            const parent = target.parentElement;
+            if (parent && !parent.querySelector('.initials-fallback')) {
+              const fallback = document.createElement('div');
+              fallback.className = `initials-fallback absolute inset-0 flex items-center justify-center rounded-full text-white font-semibold ${sizeClasses[size]} bg-gradient-to-br ${color}`;
+              fallback.textContent = initials;
+              parent.appendChild(fallback);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+  
+  // Otherwise show colored initials
+  return (
+    <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
+      {initials}
+    </div>
+  );
+}
+
+// Get icon for skill category
+const getCategoryIcon = (category: string) => {
+  const iconMap: { [key: string]: any } = {
+    'web': Code,
+    'mobile': Smartphone,
+    'design': Palette,
+    'marketing': TrendingUp,
+    'languages': Globe,
+    'writing': PenTool,
+    'music': Music,
+    'cooking': ChefHat,
+    'prompt': Sparkles,
+    'photography': Camera,
+    'speaking': Mic,
+    'management': Kanban
+  };
+  return iconMap[category] || Search;
 };
 
 // 30 Diverse Egyptian Experts with Professional Details
@@ -47,8 +185,6 @@ const EGYPTIAN_EXPERTS = [
     id: 1,
     name: "Ahmed Mansour",
     initials: "AM",
-    useAvatar: true,
-    avatarType: "panda",
     topSkill: { title: "React Development", category: "web", icon: Code },
     skills: ["React", "TypeScript", "Node.js"],
     rating: 4.9,
@@ -59,8 +195,6 @@ const EGYPTIAN_EXPERTS = [
     id: 2,
     name: "Sara Hassan",
     initials: "SH",
-    useAvatar: false,
-    gradient: "from-purple-500 to-violet-600",
     topSkill: { title: "Middle Eastern Cooking", category: "cooking", icon: ChefHat },
     skills: ["Egyptian Cuisine", "Levantine Dishes", "Desserts"],
     rating: 5.0,
@@ -71,8 +205,6 @@ const EGYPTIAN_EXPERTS = [
     id: 3,
     name: "Omar Sherif",
     initials: "OS",
-    useAvatar: true,
-    avatarType: "robot",
     topSkill: { title: "Prompt Engineering", category: "prompt", icon: Sparkles },
     skills: ["AI Prompts", "ChatGPT", "Midjourney"],
     rating: 4.7,
@@ -83,9 +215,7 @@ const EGYPTIAN_EXPERTS = [
     id: 4,
     name: "Mariam Ali",
     initials: "MA",
-    useAvatar: false,
-    gradient: "from-blue-500 to-indigo-600",
-    topSkill: { title: "Arabic Language", category: "languages", icon: Globe },
+    topSkill: { title: "Modern Arabic", category: "languages", icon: Globe },
     skills: ["Modern Arabic", "Classical Arabic", "Egyptian Dialect"],
     rating: 4.9,
     swaps: 27,
@@ -95,9 +225,7 @@ const EGYPTIAN_EXPERTS = [
     id: 5,
     name: "Khaled Ibrahim",
     initials: "KI",
-    useAvatar: true,
-    avatarType: "cat",
-    topSkill: { title: "Mobile Development", category: "mobile", icon: Smartphone },
+    topSkill: { title: "iOS Development", category: "mobile", icon: Smartphone },
     skills: ["iOS", "Android", "React Native"],
     rating: 4.8,
     swaps: 22,
@@ -107,8 +235,6 @@ const EGYPTIAN_EXPERTS = [
     id: 6,
     name: "Fatima Mahmoud",
     initials: "FM",
-    useAvatar: false,
-    gradient: "from-pink-500 to-rose-600",
     topSkill: { title: "UI/UX Design", category: "design", icon: Palette },
     skills: ["Figma", "Adobe XD", "Prototyping"],
     rating: 4.6,
@@ -119,10 +245,8 @@ const EGYPTIAN_EXPERTS = [
     id: 7,
     name: "Youssef Abdel",
     initials: "YA",
-    useAvatar: true,
-    avatarType: "rabbit",
     topSkill: { title: "Photography", category: "photography", icon: Camera },
-    skills: ["Portrait", "Landscape", "Event Photography"],
+    skills: ["Portrait", "Event Photography", "Photo Editing"],
     rating: 4.9,
     swaps: 34,
     bio: "Professional photographer capturing moments across Egypt and the Middle East"
@@ -131,10 +255,8 @@ const EGYPTIAN_EXPERTS = [
     id: 8,
     name: "Nadia Kamel",
     initials: "NK",
-    useAvatar: false,
-    gradient: "from-green-500 to-emerald-600",
     topSkill: { title: "Public Speaking", category: "speaking", icon: Mic },
-    skills: ["Presentation Skills", "Debate Coaching", "Corporate Training"],
+    skills: ["Public Speaking", "Presentation Skills", "Debate Coaching"],
     rating: 4.8,
     swaps: 19,
     bio: "Communication expert helping professionals master the art of public speaking"
@@ -143,8 +265,6 @@ const EGYPTIAN_EXPERTS = [
     id: 9,
     name: "Mohamed Elsayed",
     initials: "ME",
-    useAvatar: true,
-    avatarType: "girl",
     topSkill: { title: "Project Management", category: "management", icon: Kanban },
     skills: ["Agile", "Scrum", "Team Leadership"],
     rating: 4.7,
@@ -155,8 +275,6 @@ const EGYPTIAN_EXPERTS = [
     id: 10,
     name: "Layla Hussein",
     initials: "LH",
-    useAvatar: false,
-    gradient: "from-orange-500 to-amber-600",
     topSkill: { title: "Digital Marketing", category: "marketing", icon: TrendingUp },
     skills: ["SEO", "Social Media", "Content Strategy"],
     rating: 4.5,
@@ -167,8 +285,6 @@ const EGYPTIAN_EXPERTS = [
     id: 11,
     name: "Karim Nabil",
     initials: "KN",
-    useAvatar: true,
-    avatarType: "boy",
     topSkill: { title: "Music Production", category: "music", icon: Music },
     skills: ["Beat Making", "Audio Engineering", "MIDI Production"],
     rating: 4.8,
@@ -179,10 +295,8 @@ const EGYPTIAN_EXPERTS = [
     id: 12,
     name: "Rania Salah",
     initials: "RS",
-    useAvatar: false,
-    gradient: "from-teal-500 to-cyan-600",
     topSkill: { title: "Technical Writing", category: "writing", icon: PenTool },
-    skills: ["Documentation", "API Writing", "Content Creation"],
+    skills: ["Technical Writing", "Documentation", "API Writing"],
     rating: 4.6,
     swaps: 13,
     bio: "Technical writer making complex concepts simple and accessible"
@@ -191,9 +305,7 @@ const EGYPTIAN_EXPERTS = [
     id: 13,
     name: "Hassan Ali",
     initials: "HA",
-    useAvatar: true,
-    avatarType: "artist",
-    topSkill: { title: "Web Development", category: "web", icon: Code },
+    topSkill: { title: "Python Development", category: "web", icon: Code },
     skills: ["Vue.js", "Python", "Django"],
     rating: 4.7,
     swaps: 24,
@@ -203,8 +315,6 @@ const EGYPTIAN_EXPERTS = [
     id: 14,
     name: "Mona Fathy",
     initials: "MF",
-    useAvatar: false,
-    gradient: "from-violet-500 to-purple-600",
     topSkill: { title: "Business English", category: "languages", icon: Globe },
     skills: ["Business English", "IELTS Prep", "Corporate Training"],
     rating: 4.9,
@@ -215,8 +325,6 @@ const EGYPTIAN_EXPERTS = [
     id: 15,
     name: "Tarek Omar",
     initials: "TO",
-    useAvatar: true,
-    avatarType: "scientist",
     topSkill: { title: "Data Science", category: "web", icon: Code },
     skills: ["Machine Learning", "Python", "Data Analysis"],
     rating: 4.8,
@@ -227,8 +335,6 @@ const EGYPTIAN_EXPERTS = [
     id: 16,
     name: "Dalia Magdy",
     initials: "DM",
-    useAvatar: false,
-    gradient: "from-indigo-500 to-blue-600",
     topSkill: { title: "Graphic Design", category: "design", icon: Palette },
     skills: ["Branding", "Logo Design", "Print Design"],
     rating: 4.5,
@@ -237,59 +343,49 @@ const EGYPTIAN_EXPERTS = [
   },
   {
     id: 17,
-    name: "Amr Ahmed",
-    initials: "AA",
-    useAvatar: true,
-    avatarType: "panda",
-    topSkill: { title: "Egyptian Cuisine", category: "cooking", icon: ChefHat },
-    skills: ["Traditional Egyptian", "Street Food", "Halal Cooking"],
-    rating: 5.0,
-    swaps: 35,
-    bio: "Master chef preserving authentic Egyptian culinary traditions"
-  },
-  {
-    id: 18,
     name: "Salwa Gamal",
     initials: "SG",
-    useAvatar: false,
-    gradient: "from-rose-500 to-pink-600",
-    topSkill: { title: "Content Writing", category: "writing", icon: PenTool },
+    topSkill: { title: "Blog Writing", category: "writing", icon: PenTool },
     skills: ["Blog Writing", "Copywriting", "SEO Content"],
     rating: 4.4,
     swaps: 12,
     bio: "Content writer creating engaging stories for digital platforms"
   },
   {
-    id: 19,
+    id: 18,
     name: "Mahmoud Reda",
     initials: "MR",
-    useAvatar: true,
-    avatarType: "robot",
-    topSkill: { title: "AI Integration", category: "prompt", icon: Sparkles },
+    topSkill: { title: "ChatGPT", category: "prompt", icon: Sparkles },
     skills: ["ChatGPT", "Automation", "AI Strategy"],
     rating: 4.6,
     swaps: 14,
     bio: "AI consultant helping businesses integrate artificial intelligence"
   },
   {
-    id: 20,
+    id: 19,
     name: "Aya Khaled",
     initials: "AK",
-    useAvatar: false,
-    gradient: "from-cyan-500 to-teal-600",
-    topSkill: { title: "Social Media Marketing", category: "marketing", icon: TrendingUp },
+    topSkill: { title: "Social Media", category: "marketing", icon: TrendingUp },
     skills: ["Instagram", "Facebook", "Content Strategy"],
     rating: 4.7,
     swaps: 25,
     bio: "Social media expert building strong online communities"
   },
   {
+    id: 20,
+    name: "Maryam Khaled",
+    initials: "MK",
+    topSkill: { title: "Frontend Development", category: "web", icon: Code },
+    skills: ["Frontend Development", "React", "Supabase"],
+    rating: 4.9,
+    swaps: 23,
+    bio: "Frontend developer specializing in React and Supabase integrations. Passionate about creating beautiful and functional web applications."
+  },
+  {
     id: 21,
     name: "Mostafa Ahmed",
     initials: "MA",
-    useAvatar: true,
-    avatarType: "panda",
-    topSkill: { title: "Python Development", category: "web", icon: Code },
+    topSkill: { title: "Python Programming", category: "web", icon: Code },
     skills: ["Python", "Django", "Data Science"],
     rating: 4.8,
     swaps: 19,
@@ -299,8 +395,6 @@ const EGYPTIAN_EXPERTS = [
     id: 22,
     name: "Nourhan Mohamed",
     initials: "NM",
-    useAvatar: false,
-    gradient: "from-amber-500 to-orange-600",
     topSkill: { title: "Fashion Design", category: "design", icon: Palette },
     skills: ["Fashion Sketching", "Pattern Making", "Styling"],
     rating: 4.6,
@@ -309,22 +403,8 @@ const EGYPTIAN_EXPERTS = [
   },
   {
     id: 23,
-    name: "Ali Hassan",
-    initials: "AH",
-    useAvatar: true,
-    avatarType: "robot",
-    topSkill: { title: "DevOps Engineering", category: "web", icon: Code },
-    skills: ["Docker", "Kubernetes", "CI/CD"],
-    rating: 4.9,
-    swaps: 28,
-    bio: "DevOps engineer optimizing deployment pipelines and infrastructure"
-  },
-  {
-    id: 24,
     name: "Salma Mahmoud",
     initials: "SM",
-    useAvatar: false,
-    gradient: "from-indigo-500 to-purple-600",
     topSkill: { title: "Translation Services", category: "languages", icon: Globe },
     skills: ["English-Arabic", "French-Arabic", "Technical Translation"],
     rating: 4.7,
@@ -332,11 +412,9 @@ const EGYPTIAN_EXPERTS = [
     bio: "Professional translator providing accurate language services"
   },
   {
-    id: 25,
+    id: 24,
     name: "Omar Khaled",
     initials: "OK",
-    useAvatar: true,
-    avatarType: "cat",
     topSkill: { title: "Game Development", category: "web", icon: Code },
     skills: ["Unity", "C#", "2D/3D Graphics"],
     rating: 4.5,
@@ -344,11 +422,9 @@ const EGYPTIAN_EXPERTS = [
     bio: "Game developer creating engaging mobile and PC games"
   },
   {
-    id: 26,
+    id: 25,
     name: "Hend Ahmed",
     initials: "HA",
-    useAvatar: false,
-    gradient: "from-pink-500 to-rose-600",
     topSkill: { title: "Yoga Instruction", category: "speaking", icon: Mic },
     skills: ["Hatha Yoga", "Meditation", "Wellness Coaching"],
     rating: 4.8,
@@ -356,11 +432,9 @@ const EGYPTIAN_EXPERTS = [
     bio: "Certified yoga instructor promoting health and mindfulness"
   },
   {
-    id: 27,
+    id: 26,
     name: "Mahmoud Fathy",
     initials: "MF",
-    useAvatar: true,
-    avatarType: "scientist",
     topSkill: { title: "Blockchain Development", category: "web", icon: Code },
     skills: ["Solidity", "Web3", "Smart Contracts"],
     rating: 4.6,
@@ -368,11 +442,9 @@ const EGYPTIAN_EXPERTS = [
     bio: "Blockchain developer building decentralized applications"
   },
   {
-    id: 28,
+    id: 27,
     name: "Rania Ali",
     initials: "RA",
-    useAvatar: false,
-    gradient: "from-teal-500 to-cyan-600",
     topSkill: { title: "Video Editing", category: "design", icon: Palette },
     skills: ["Adobe Premiere", "Final Cut Pro", "Motion Graphics"],
     rating: 4.7,
@@ -380,11 +452,9 @@ const EGYPTIAN_EXPERTS = [
     bio: "Video editor creating compelling visual content"
   },
   {
-    id: 29,
+    id: 28,
     name: "Khaled Mohamed",
     initials: "KM",
-    useAvatar: true,
-    avatarType: "boy",
     topSkill: { title: "Cybersecurity", category: "web", icon: Code },
     skills: ["Network Security", "Ethical Hacking", "Risk Assessment"],
     rating: 4.9,
@@ -392,392 +462,444 @@ const EGYPTIAN_EXPERTS = [
     bio: "Cybersecurity expert protecting digital assets and infrastructure"
   },
   {
-    id: 30,
+    id: 29,
     name: "Mona Ahmed",
     initials: "MA",
-    useAvatar: false,
-    gradient: "from-violet-500 to-purple-600",
     topSkill: { title: "Business Consulting", category: "management", icon: Kanban },
     skills: ["Strategy Planning", "Market Analysis", "Business Development"],
     rating: 4.8,
     swaps: 23,
     bio: "Business consultant helping companies grow and optimize operations"
+  },
+  {
+    id: 30,
+    name: "Adel Emam",
+    initials: "AE",
+    topSkill: { title: "Video Production", category: "design", icon: Palette },
+    skills: ["Video Editing", "Storytelling"],
+    rating: 4.7,
+    swaps: 24,
+    bio: "Video editor creating compelling visual content"
   }
 ];
 
+// Skeleton component for loading state
+const SkeletonCard = () => (
+  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 animate-pulse">
+    <div className="flex items-center space-x-4">
+      <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
+      <div className="flex-1">
+        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+      </div>
+    </div>
+    <div className="mt-4">
+      <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
+      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+    </div>
+    <div className="mt-4 flex justify-between items-center">
+      <div className="flex space-x-1">
+        <div className="h-6 bg-gray-200 rounded w-12"></div>
+        <div className="h-6 bg-gray-200 rounded w-12"></div>
+      </div>
+      <div className="h-8 bg-gray-200 rounded w-20"></div>
+    </div>
+  </div>
+);
+
 export default function Explore() {
-  const router = useNavigate();
+  const { user: currentUser } = useAuth();
+  const { currentUser: userProfile, friends } = useUserProfile();
+  const navigate = useNavigate();
+  const [relationshipStatus, setRelationshipStatus] = useState<Map<string, 'accepted' | 'pending_sent' | 'pending_received' | 'none'>>(new Map());
+
+  // Realtime updates for instant new user appearance
+  useRealtimeProfiles((newProfile) => {
+    console.log('New profile in Explore:', newProfile);
+    // Always add new profile to the list for instant appearance
+    if (newProfile && newProfile.id) {
+      setRealUsers(prevUsers => {
+        // Check if profile already exists to avoid duplicates
+        const exists = prevUsers.some(user => user.id === newProfile.id);
+        if (!exists) {
+          // Transform new profile to match expected format
+          const transformedProfile = {
+            id: newProfile.id,
+            name: newProfile.full_name || 'Unknown User',
+            initials: (newProfile.full_name || 'Unknown User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+            avatar_url: newProfile.avatar_url || null,
+            bio: newProfile.bio || 'No bio available',
+            skills: newProfile.skills || [],
+            rating: newProfile.rating || 0,
+            swaps: newProfile.total_swaps || 0,
+            trust_score: newProfile.rating || 0,
+            exchanges: newProfile.total_swaps || 0,
+            topSkill: {
+              title: newProfile.skills?.[0]?.title || 'Learning',
+              category: newProfile.skills?.[0]?.category || 'General',
+              icon: getCategoryIcon(newProfile.skills?.[0]?.category || 'general')
+            }
+          };
+          return [...prevUsers, transformedProfile];
+        }
+        return prevUsers;
+      });
+    }
+  });
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredUsers, setFilteredUsers] = useState(EGYPTIAN_EXPERTS);
-  const [loading, setLoading] = useState(true);
+  const [filteredUsers, setFilteredUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [realUsers, setRealUsers] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
 
-  // Get current user from Supabase auth
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        setCurrentUser(user);
-      } catch (error) {
-        console.error('Error getting current user:', error);
-        setCurrentUser(null);
+  // Fetch skills separately for each user
+  const fetchUserSkills = async (userId: string) => {
+    try {
+      const { data: skills, error } = await supabase
+        .from('skills')
+        .select('title, category')
+        .eq('user_id', userId) // Note: skills table still uses user_id foreign key
+        .limit(3); // Limit to 3 skills per user
+      
+      if (error) {
+        console.error(`Error fetching skills for user ${userId}:`, error);
+        return [];
       }
-    };
-    getCurrentUser();
+      
+      return skills || [];
+    } catch (error) {
+      console.error(`Error in fetchUserSkills for ${userId}:`, error);
+      return [];
+    }
+  };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user || null);
-    });
+  // Helper function to fetch relationship status
+  const fetchRelationshipStatus = async (userId: string) => {
+    if (!currentUser?.id) return 'none';
+    
+    try {
+      const { data, error } = await supabase
+        .from('swap_requests')
+        .select('sender_id, receiver_id, status')
+        .or(`(sender_id.eq.${currentUser.id},receiver_id.eq.${userId}),(sender_id.eq.${userId},receiver_id.eq.${currentUser.id})`)
+        .maybeSingle();
 
-    return () => subscription.unsubscribe();
-  }, []);
+      if (error || !data) return 'none';
+      
+      if (data.status === 'accepted') return 'accepted';
+      if (data.status === 'pending') {
+        return data.sender_id === currentUser.id ? 'pending_sent' : 'pending_received';
+      }
+      
+      return 'none';
+    } catch (error) {
+      console.error('Error fetching relationship status:', error);
+      return 'none';
+    }
+  };
 
   // Fetch real users from Supabase
   useEffect(() => {
     const fetchRealUsers = async () => {
-      try {
-        setLoading(true);
-        
-        // Query with JOIN to fetch all profiles with their skills
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*, skills(title)')
-          .order('full_name', { ascending: true });
+      if (!currentUser?.id) {
+        console.log('No current user, skipping fetch');
+        setRealUsers([]);
+        setIsLoading(false);
+        return;
+      }
 
-        if (error) {
-          console.error('Error fetching profiles:', error);
-          setRealUsers([]);
-          setLoading(false);
-          return;
-        }
+    console.log('=== FETCH DEBUG ===');
+    console.log('Current User ID:', currentUser?.id);
+    console.log('Current User:', currentUser);
+    
+    setIsLoading(true);
+    
+    try {
+      // Fetch profiles with skills
+      console.log('=== EXPLORE PAGE DEBUG ===');
+      console.log('Fetching profiles with skills...');
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, bio, avatar_url, id, rating, total_swaps, skills!skills_user_id_fkey(title, category)');
 
-        // Safe data handling - check if data exists and has length
-        if (data && data.length > 0) {
-          // Find Maryam Khaled and place her at element 20
-          const maryamIndex = data.findIndex(p => p.full_name?.includes('Maryam Khaled'));
-          if (maryamIndex > -1) {
-            const [maryam] = data.splice(maryamIndex, 1);
-            const targetIndex = 19; // Position 20 = index 19
-            data.splice(targetIndex, 0, maryam);
-          }
+      console.log('Fetched Profiles:', data);
+      
+      if (error) {
+        console.error('Error fetching profiles:', error);
+        console.dir(error); // Full error object for debugging
+        // Silent error handling - no toast.error on initial load
+        setRealUsers([]);
+        setIsLoading(false);
+        return;
+      }
+        const validProfiles = data.filter(profile => 
+          profile.full_name && 
+          profile.full_name !== 'Unknown User' && 
+          profile.full_name.trim() !== '' &&
+          profile.id
+        );
 
-          // Transform profiles to match expected structure
-          const transformedUsers = data.map(profile => ({
-            id: profile.user_id,
+        console.log(`Valid profiles after filtering: ${validProfiles.length}`);
+
+        // Transform profiles to match the expected user structure with skills and fetch relationship status
+        const transformedUsers = await Promise.all(validProfiles.map(async (profile) => {
+          // Safe access to skills with optional chaining
+          const userSkills = profile.skills || [];
+          const firstSkill = userSkills?.[0];
+          
+          // Fetch relationship status for this user
+          const status = await fetchRelationshipStatus(profile.id);
+          
+          console.log(`Transforming profile:`, {
+            full_name: profile.full_name,
+            id: profile.id,
+            skills_count: userSkills.length,
+            first_skill: firstSkill?.title || 'No skills',
+            relationship_status: status
+          });
+          
+          return {
+            id: profile.id,
             name: profile.full_name || 'Unknown User',
             initials: (profile.full_name || 'Unknown User').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
-            useAvatar: !!profile.avatar_url,
-            avatar_url: profile.avatar_url,
-            gradient: getAvatarColor(profile.user_id || profile.full_name || 'Unknown User'),
+            avatar_url: profile.avatar_url || null,
             bio: profile.bio || 'No bio available',
-            skills: profile.skills || [],
+            skills: userSkills,
             rating: profile.rating || 0,
-            swaps: profile.swaps_count || 0,
+            swaps: profile.total_swaps || 0,
             trust_score: profile.rating || 0,
-            exchanges: profile.swaps_count || 0,
-            topSkill: profile.skills && profile.skills.length > 0 ? {
-              title: profile.skills[0].title,
-              category: 'web',
-              icon: Code
-            } : {
-              title: 'New Member',
-              category: 'all',
-              icon: Search
-            }
-          }));
+            exchanges: profile.total_swaps || 0,
+            topSkill: {
+              title: firstSkill?.title || 'Learning', // Fallback: 'Learning'
+              category: firstSkill?.category || 'General', // Fallback: 'General'
+              icon: getCategoryIcon(firstSkill?.category || 'general')
+            },
+            relationshipStatus: status
+          };
+        }));
 
-          setRealUsers(transformedUsers);
-        } else {
-          console.log('No profiles found or empty data');
-          setRealUsers([]);
-        }
+        console.log('Transformed users:', transformedUsers);
+
+        // Update relationship status map
+        const statusMap = new Map<string, 'accepted' | 'pending_sent' | 'pending_received' | 'none'>();
+        transformedUsers.forEach(user => {
+          statusMap.set(user.id, user.relationshipStatus as 'accepted' | 'pending_sent' | 'pending_received' | 'none');
+        });
+        setRelationshipStatus(statusMap);
+
+        setRealUsers(transformedUsers);
+        setFilteredUsers(transformedUsers);
       } catch (error) {
         console.error('Error in fetchRealUsers:', error);
         setRealUsers([]);
+        setFilteredUsers([]);
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
     fetchRealUsers();
+  }, [lastFetchTime]); // Re-fetch when lastFetchTime changes
 
-    // Set up Supabase realtime for auto-refresh
-    const channel = supabase
-      .channel('profiles-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles' },
-        (payload) => {
-          console.log('Profile change detected:', payload);
-          fetchRealUsers(); // Re-fetch users when changes occur
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  // Filter out duplicate names, keeping only first occurrence
-  const filterDuplicates = (users: any[]) => {
-    const seenNames = new Set<string>();
-    return users.filter(user => {
-      const userName = user.name || '';
-      if (seenNames.has(userName)) {
-        return false; // Skip duplicate
-      }
-      seenNames.add(userName);
-      return true; // Keep first occurrence
-    });
+  // Manual refresh function
+  const refreshData = () => {
+    setLastFetchTime(Date.now());
   };
 
-  // Stable sorting function with manual positioning
-  const getStableSortedUsers = (users: any[]) => {
-    // Safe check for empty or undefined array
-    if (!users || users.length === 0) {
-      return [];
-    }
-    
-    // Sort by name ascending for stable ordering
-    const sortedProfiles = [...users].sort((a, b) => {
-      const nameA = a.name || a.full_name || '';
-      const nameB = b.name || b.full_name || '';
-      return nameA.localeCompare(nameB);
-    });
-    
-    // Find Maryam and place her in middle
-    const maryamIndex = sortedProfiles.findIndex(p => {
-      const name = p.name || p.full_name || '';
-      return name.includes('Maryam');
-    });
-    
-    if (maryamIndex > -1) {
-      const [maryam] = sortedProfiles.splice(maryamIndex, 1);
-      const targetIndex = Math.floor(sortedProfiles.length / 2); // Middle position
-      sortedProfiles.splice(targetIndex, 0, maryam);
-    }
-    
-    return sortedProfiles;
-  };
+  // Dynamic Global Filter - Computed filtered profiles
+  const filteredProfiles = useMemo(() => {
+    let filtered = realUsers;
 
-  // Merge real users with dummy data and filter duplicates
-  useEffect(() => {
-    const allUsers = [...EGYPTIAN_EXPERTS, ...realUsers];
-    const filteredUsers = filterDuplicates(allUsers);
-    const stableSorted = getStableSortedUsers(filteredUsers);
-    setFilteredUsers(stableSorted);
-  }, [realUsers]);
+    console.log('=== FILTER DEBUG ===');
+    console.log('Active Category:', activeCategory);
+    console.log('Real Users Count:', realUsers.length);
+    console.log('Current User ID:', currentUser?.id);
 
-  const handleCategoryFilter = (categoryId: string) => {
-    setActiveCategory(categoryId);
-    
-    const allUsers = [...EGYPTIAN_EXPERTS, ...realUsers];
-    let filtered = filterDuplicates(allUsers); // Filter duplicates first
-    const stableSorted = getStableSortedUsers(filtered); // Apply stable sorting
-    
-    if (categoryId !== 'all') {
+    // Exclude current user from Explore page
+    if (currentUser?.id) {
+      filtered = filtered.filter(user => user.id !== currentUser.id);
+      console.log('Filtered Users Count after excluding current user:', filtered.length);
+    }
+
+    if (activeCategory !== 'all') {
       filtered = filtered.filter(user => {
-        // Handle real users with skills array
-        if (user.skills && Array.isArray(user.skills)) {
-          return user.skills.some((skill: any) => {
-            // Map skill category names to match filter
-            const skillCategory = skill.category?.toLowerCase() || skill.title?.toLowerCase() || '';
-            return skillCategory === categoryId || 
-                   skill.title?.toLowerCase() === categoryId || // For Photography and Art
-                   skill.title?.toLowerCase().includes('photography') && categoryId === 'photography' ||
-                   skill.title?.toLowerCase().includes('art') && categoryId === 'design';
-          });
-        }
-        // Handle mock users with topSkill.category
-        return user.topSkill?.category === categoryId;
+        const hasMatchingSkill = user.skills && user.skills.some(skill => {
+          const skillCategory = skill.category?.toLowerCase();
+          const activeCat = activeCategory.toLowerCase();
+          console.log(`Checking skill: ${skill.title}, category: ${skillCategory} vs ${activeCat}`);
+          return skillCategory === activeCat;
+        });
+        return hasMatchingSkill;
       });
+      console.log('Filtered Users Count after category filter:', filtered.length);
     }
-    
+
     if (searchQuery.trim()) {
-      filtered = filtered.filter(user => {
-        const userName = user.name || '';
-        const userBio = user.bio || '';
-        
-        // Handle real users with skills array
-        if (user.skills && Array.isArray(user.skills)) {
-          const skillTitles = user.skills.map((skill: any) => skill.title || '').join(' ');
-          return userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 userBio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                 skillTitles.toLowerCase().includes(searchQuery.toLowerCase());
-        }
-        
-        // Handle mock users
-        return userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               userBio.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               user.topSkill?.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-               user.skills?.some((skill: string) => skill.toLowerCase().includes(searchQuery.toLowerCase()));
-      });
+      filtered = filtered.filter(user =>
+        (user.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+        (user.bio?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
+        (user.skills?.some(skill => skill.title?.toLowerCase().includes(searchQuery.toLowerCase())) || false)
+      );
     }
-    
-    const finalSorted = getStableSortedUsers(filtered);
-    setFilteredUsers(finalSorted);
+
+    console.log('Final Filtered Users Count:', filtered.length);
+    return filtered;
+  }, [realUsers, activeCategory, searchQuery]);
+
+  // Update filteredUsers state for compatibility with existing code
+  useEffect(() => {
+    setFilteredUsers(filteredProfiles);
+  }, [filteredProfiles]);
+
+  const handleSearch = (query: string) => {
+    setSearchQuery(query);
   };
 
-  const handleSearch = async (searchTerm: string) => {
-    setSearchQuery(searchTerm);
-    
-    if (!searchTerm.trim()) {
-      const allUsers = [...EGYPTIAN_EXPERTS, ...realUsers];
-      const filteredUsers = filterDuplicates(allUsers);
-      const stableSorted = getStableSortedUsers(filteredUsers);
-      setFilteredUsers(stableSorted);
+  const openProfileModal = (user: any) => {
+    setSelectedUser(user);
+    setProfileModalOpen(true);
+  };
+
+  const closeProfileModal = () => {
+    setProfileModalOpen(false);
+    setSelectedUser(null);
+  };
+
+  const handleMessageClick = async (userId: string) => {
+    if (!currentUser) {
+      toast.error('Please log in to send messages');
       return;
     }
-    
-    if (searchTerm.trim()) {
-      let filtered = realUsers.filter(user => {
-        const userName = user.name || '';
-        const userBio = user.bio || '';
-        
-        // Handle real users with skills array
-        if (user.skills && Array.isArray(user.skills)) {
-          const skillTitles = user.skills.map((skill: any) => skill.title || '').join(' ');
-          return userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                 userBio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                 skillTitles.toLowerCase().includes(searchTerm.toLowerCase());
+
+    try {
+      // Check if conversation already exists
+      const { data: existingConversation, error: checkError } = await supabase
+        .from('conversations')
+        .select('*')
+        .or(`and(participant_one.eq.${currentUser.id},participant_two.eq.${userId}),and(participant_one.eq.${userId},participant_two.eq.${currentUser.id})`)
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.error('Error checking conversation:', checkError);
+        toast.error('Failed to check conversation');
+        return;
+      }
+
+      let conversationId: string;
+
+      if (existingConversation) {
+        // Use existing conversation
+        conversationId = existingConversation.id;
+      } else {
+        // Create new conversation
+        const { data: newConversation, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            participant_one: currentUser.id,
+            participant_two: userId
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating conversation:', createError);
+          toast.error('Failed to create conversation');
+          return;
         }
-        
-        // Handle mock users
-        return userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               userBio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               user.topSkill?.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-               user.skills?.some((skill: string) => skill.toLowerCase().includes(searchTerm.toLowerCase()));
-      });
-      const finalSorted = getStableSortedUsers(filtered);
-      setFilteredUsers(finalSorted);
+
+        conversationId = newConversation.id;
+      }
+
+      // Navigate to chat with conversation ID
+      navigate(`/chat/${conversationId}`);
+      closeProfileModal();
+    } catch (error) {
+      console.error('Error in handleMessageClick:', error);
+      toast.error('Failed to start conversation');
     }
   };
 
-  const handleSwapRequest = (userName: string) => {
-    // toast.success(`Swap request sent to ${userName}!`);
+  const handleSwapRequest = async (user: any) => {
+    if (!currentUser) {
+      toast.error('Please log in to send swap requests');
+      return;
+    }
+
+    if (currentUser.id === user.id) {
+      toast.error('You cannot send a swap request to yourself');
+      return;
+    }
+
+    try {
+      // Check for existing pending request
+      const { data: existingRequest, error: checkError } = await supabase
+        .from('swap_requests')
+        .select('*')
+        .eq('sender_id', currentUser.id)
+        .eq('receiver_id', user.id)
+        .eq('status', 'pending')
+        .single();
+
+      // Handle case where table doesn't exist yet
+      if (checkError) {
+        if (checkError.code === 'PGRST116') {
+          // No existing request found, proceed to create new one
+        } else if (checkError.message?.includes('relation') && checkError.message?.includes('does not exist')) {
+          toast.error('Swap requests table not available. Please contact administrator.');
+          return;
+        } else {
+          console.error('Error checking existing requests:', checkError);
+          toast.error('Error checking swap requests');
+          return;
+        }
+      }
+
+      if (existingRequest) {
+        toast.error('You already have a pending swap request with this user');
+        return;
+      }
+
+      // Create new swap request
+      const { data, error } = await supabase
+        .from('swap_requests')
+        .insert({
+          sender_id: currentUser.id,
+          receiver_id: user.id,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          toast.error('Swap requests table not available. Please contact administrator.');
+        } else {
+          console.error('Error creating swap request:', error);
+          toast.error('Failed to send swap request');
+        }
+        return;
+      }
+
+      toast.success('Swap request sent successfully!');
+      
+      // Update the modal state to show "Request Sent"
+      if (selectedUser?.id === user.id) {
+        setSelectedUser(prev => prev ? { ...prev, requestSent: true } : null);
+      }
+
+    } catch (error) {
+      console.error('Unexpected error:', error);
+      toast.error('An unexpected error occurred');
+    }
   };
 
-  // Get avatar SVG based on type
-  const getAvatarSvg = (avatarType: string) => {
-    const avatars: { [key: string]: React.ReactElement } = {
-      panda: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#ffffff"/>
-          <circle cx="35" cy="40" r="8" fill="#000000"/>
-          <circle cx="65" cy="40" r="8" fill="#000000"/>
-          <circle cx="35" cy="42" r="3" fill="#ffffff"/>
-          <circle cx="65" cy="42" r="3" fill="#ffffff"/>
-          <ellipse cx="50" cy="65" rx="8" ry="6" fill="#000000"/>
-          <circle cx="25" cy="25" r="12" fill="#000000"/>
-          <circle cx="75" cy="25" r="12" fill="#000000"/>
-          <circle cx="25" cy="27" r="5" fill="#ffffff"/>
-          <circle cx="75" cy="27" r="5" fill="#ffffff"/>
-        </svg>
-      ),
-      cat: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#ff8c42"/>
-          <polygon points="30,20 35,35 25,35" fill="#ff8c42"/>
-          <polygon points="70,20 75,35 65,35" fill="#ff8c42"/>
-          <circle cx="35" cy="45" r="5" fill="#000000"/>
-          <circle cx="65" cy="45" r="5" fill="#000000"/>
-          <circle cx="37" cy="47" r="2" fill="#ffffff"/>
-          <circle cx="67" cy="47" r="2" fill="#ffffff"/>
-          <polygon points="50,55 45,65 55,65" fill="#ff6b6b"/>
-          <line x1="50" y1="65" x2="50" y2="75" stroke="#ff6b6b" strokeWidth="2"/>
-        </svg>
-      ),
-      robot: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <rect x="20" y="30" width="60" height="50" rx="10" fill="#4a90e2"/>
-          <rect x="25" y="35" width="20" height="15" rx="5" fill="#ffffff"/>
-          <rect x="55" y="35" width="20" height="15" rx="5" fill="#ffffff"/>
-          <circle cx="35" cy="42" r="3" fill="#000000"/>
-          <circle cx="65" cy="42" r="3" fill="#000000"/>
-          <rect x="40" y="60" width="20" height="10" rx="5" fill="#2c5aa0"/>
-          <rect x="30" y="75" width="10" height="15" fill="#4a90e2"/>
-          <rect x="60" y="75" width="10" height="15" fill="#4a90e2"/>
-          <circle cx="35" cy="25" r="5" fill="#ff6b6b"/>
-          <circle cx="65" cy="25" r="5" fill="#ff6b6b"/>
-        </svg>
-      ),
-      rabbit: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="55" r="35" fill="#f5f5dc"/>
-          <ellipse cx="35" cy="25" rx="8" ry="20" fill="#f5f5dc"/>
-          <ellipse cx="65" cy="25" rx="8" ry="20" fill="#f5f5dc"/>
-          <ellipse cx="35" cy="28" rx="4" ry="8" fill="#ffb6c1"/>
-          <ellipse cx="65" cy="28" rx="4" ry="8" fill="#ffb6c1"/>
-          <circle cx="40" cy="50" r="3" fill="#000000"/>
-          <circle cx="60" cy="50" r="3" fill="#000000"/>
-          <circle cx="42" cy="51" r="1" fill="#ffffff"/>
-          <circle cx="62" cy="51" r="1" fill="#ffffff"/>
-          <circle cx="50" cy="60" r="2" fill="#ffb6c1"/>
-          <circle cx="45" cy="65" r="1" fill="#000000"/>
-          <circle cx="55" cy="65" r="1" fill="#000000"/>
-        </svg>
-      ),
-      girl: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#fdbcb4"/>
-          <path d="M 20 40 Q 50 20 80 40 Q 80 50 50 60 Q 20 50 20 40" fill="#8b4513"/>
-          <circle cx="35" cy="45" r="3" fill="#000000"/>
-          <circle cx="65" cy="45" r="3" fill="#000000"/>
-          <circle cx="37" cy="46" r="1" fill="#ffffff"/>
-          <circle cx="67" cy="46" r="1" fill="#ffffff"/>
-          <path d="M 50 55 Q 45 60 40 55" fill="#ff69b4"/>
-          <path d="M 50 55 Q 55 60 60 55" fill="#ff69b4"/>
-          <circle cx="50" cy="65" r="2" fill="#ff69b4"/>
-        </svg>
-      ),
-      boy: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#fdbcb4"/>
-          <path d="M 25 35 Q 50 25 75 35 Q 75 45 50 50 Q 25 45 25 35" fill="#4a4a4a"/>
-          <circle cx="35" cy="45" r="3" fill="#000000"/>
-          <circle cx="65" cy="45" r="3" fill="#000000"/>
-          <circle cx="37" cy="46" r="1" fill="#ffffff"/>
-          <circle cx="67" cy="46" r="1" fill="#ffffff"/>
-          <rect x="45" y="55" width="10" height="8" rx="4" fill="#4a4a4a"/>
-          <circle cx="50" cy="65" r="2" fill="#ff69b4"/>
-        </svg>
-      ),
-      artist: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#ffe4b5"/>
-          <path d="M 30 40 Q 50 30 70 40 Q 70 50 50 55 Q 30 50 30 40" fill="#ff69b4"/>
-          <circle cx="35" cy="45" r="3" fill="#000000"/>
-          <circle cx="65" cy="45" r="3" fill="#000000"/>
-          <circle cx="37" cy="46" r="1" fill="#ffffff"/>
-          <circle cx="67" cy="46" r="1" fill="#ffffff"/>
-          <path d="M 50 55 Q 45 58 40 55" fill="#ff69b4"/>
-          <path d="M 50 55 Q 55 58 60 55" fill="#ff69b4"/>
-          <circle cx="50" cy="63" r="2" fill="#ff69b4"/>
-          <circle cx="25" cy="25" r="3" fill="#ffd700"/>
-        </svg>
-      ),
-      scientist: (
-        <svg viewBox="0 0 100 100" className="w-full h-full">
-          <circle cx="50" cy="50" r="45" fill="#e6e6fa"/>
-          <circle cx="50" cy="35" r="20" fill="#4169e1"/>
-          <rect x="30" y="30" width="40" height="10" fill="#4169e1"/>
-          <circle cx="35" cy="45" r="3" fill="#000000"/>
-          <circle cx="65" cy="45" r="3" fill="#000000"/>
-          <circle cx="37" cy="46" r="1" fill="#ffffff"/>
-          <circle cx="67" cy="46" r="1" fill="#ffffff"/>
-          <rect x="45" y="55" width="10" height="8" rx="4" fill="#4169e1"/>
-          <circle cx="50" cy="65" r="2" fill="#ff69b4"/>
-        </svg>
-      )
-    };
-    return avatars[avatarType] || avatars.panda;
-  };
-
+  
   return (
-    <div className="min-h-screen pt-32 pb-24 max-w-7xl mx-auto px-6">
+    <div className="min-h-screen pt-8 pb-24 max-w-7xl mx-auto px-6">
       {/* Hero Header */}
       <div className="text-center mb-12">
         <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-violet-600 bg-clip-text text-transparent">
@@ -787,7 +909,7 @@ export default function Explore() {
           Connect with talented individuals and exchange expertise in a premium marketplace for skills
         </p>
         
-        {/* Glassmorphism Search Bar */}
+        {/* Glassmorphism Search Bar with Refresh */}
         <div className="relative max-w-2xl mx-auto group">
           <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-purple-400 transition-colors z-10" />
           <input 
@@ -795,133 +917,99 @@ export default function Explore() {
             placeholder="Search for specific skills or users..." 
             value={searchQuery}
             onChange={(e) => handleSearch(e.target.value)}
-            className="w-full pl-14 pr-6 py-4 bg-slate-800/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:bg-slate-800/70 backdrop-blur-xl transition-all"
+            className="w-full pl-14 pr-20 py-4 bg-slate-800/50 border border-white/10 rounded-2xl text-white placeholder-slate-500 focus:outline-none focus:border-purple-500/50 focus:bg-slate-800/70 backdrop-blur-xl transition-all"
           />
+          <button
+            onClick={refreshData}
+            disabled={isLoading}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            title="Refresh data"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      {/* Loading Skeleton */}
-      {loading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="glass-card p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-16 h-16 rounded-full bg-slate-700 animate-pulse" />
-                <div className="flex-1">
-                  <div className="h-6 bg-slate-700 rounded animate-pulse mb-2" />
-                  <div className="h-4 bg-slate-700 rounded animate-pulse w-24" />
-                </div>
-              </div>
-              <div className="h-4 bg-slate-700 rounded animate-pulse mb-2" />
-              <div className="h-4 bg-slate-700 rounded animate-pulse w-32" />
-              <div className="h-10 bg-slate-700 rounded animate-pulse mt-4" />
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {/* Skills Category Filter */}
-      <div className="mb-12">
-        <div className="flex items-center gap-4 overflow-x-auto pb-4 scrollbar-hide">
+      {/* Skill Categories */}
+      <div className="mb-8">
+        <div className="flex flex-wrap gap-3 justify-center">
           {SKILL_CATEGORIES.map((category) => (
             <motion.button
               key={category.id}
-              onClick={() => handleCategoryFilter(category.id)}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveCategory(category.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-full border transition-all whitespace-nowrap ${
                 activeCategory === category.id
                   ? "bg-gradient-to-r from-purple-500 to-violet-600 border-purple-400 text-white shadow-lg shadow-purple-500/30"
                   : "bg-white/5 border-white/20 text-slate-400 hover:border-white/40 hover:text-white hover:bg-white/10"
               }`}
             >
-              <category.icon className="w-4 h-4" />
+              {getSkillIcon(category.id)}
               <span className="text-sm font-medium">{category.name}</span>
             </motion.button>
           ))}
         </div>
       </div>
 
-      {/* Results Grid */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-semibold text-white">
-            {filteredUsers.length} Expert{filteredUsers.length !== 1 ? 's' : ''} Found
-          </h2>
-          <div className="text-sm text-slate-400">
-            {activeCategory !== 'all' && (
-              <span>Filter: {SKILL_CATEGORIES.find(cat => cat.id === activeCategory)?.name}</span>
-            )}
-          </div>
+      {/* Unified Loading State - Show 8 Skeleton Cards */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
         </div>
+      )}
 
-        {/* User Cards Grid */}
-        <AnimatePresence mode="wait">
+      {/* User Cards Grid - Show all at once when loading is complete */}
+      <AnimatePresence>
+        {!isLoading && filteredProfiles.length > 0 && (
           <motion.div
-            key={`${activeCategory}-${searchQuery}`}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
           >
-            {filteredUsers.map((user, index) => {
-              // Handle real users vs mock users
-              const isRealUser = !user.useAvatar && !user.avatarType; // Real users don't have these mock properties
-              const userSkills = isRealUser ? (user.skills || []) : [];
+            {filteredProfiles.map((user, index) => {
               const topSkill = user.topSkill;
-              const skillList = isRealUser ? userSkills : user.skills;
               
               return (
-              <motion.div
-                key={user.id || index}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                className="glass-card p-6 hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all duration-300 hover:scale-105"
-              >
-                {/* User Header */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="relative">
-                    {/* Display avatar_url if available, otherwise show default */}
-                    {user.avatar_url ? (
-                      <div className="w-16 h-16 rounded-full bg-white/10 border-2 border-purple-500/30 flex items-center justify-center overflow-hidden">
-                        <img 
-                          src={user.avatar_url} 
-                          alt={user.name} 
-                          className="w-full h-full object-cover"
-                        />
+                <motion.div
+                  key={user.id || index}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-white/10 hover:border-purple-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 flex flex-col h-full"
+                >
+                  {/* Header with Avatar */}
+                  <div className="flex items-start gap-4 mb-4">
+                    <div className="relative">
+                      {/* Use standardized ModernAvatar component */}
+                      <ModernAvatar 
+                        name={user.name || 'User'} 
+                        size="medium" 
+                        avatarUrl={user.avatar_url} 
+                      />
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-slate-950" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Unknown User'}</h3>
+                      <div className="flex items-center gap-1 text-sm text-slate-400">
+                        {(user.swaps || 0) > 0 && user.rating && user.rating > 0 && user.name !== 'Maryam' && user.name !== 'yousefkh123' ? (
+                          <span> ⭐ {user.rating.toFixed(1)} • {user.swaps || 0} swaps</span>
+                        ) : (
+                          <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">New Member</span>
+                        )}
                       </div>
-                    ) : user.useAvatar ? (
-                      <div className="w-16 h-16 rounded-full bg-white/10 border-2 border-purple-500/30 flex items-center justify-center overflow-hidden">
-                        {getAvatarSvg(user.avatarType)}
-                      </div>
-                    ) : (
-                      <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${user.gradient || 'from-purple-500 to-violet-600'} border-2 border-purple-500/30 flex items-center justify-center`}>
-                        <span className="text-white font-bold text-lg">{user.initials || (user.name || '').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
-                      </div>
-                    )}
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-slate-950" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Unknown User'}</h3>
-                    <div className="flex items-center gap-1 text-sm text-slate-400">
-                      <span>⭐ {typeof (user.rating || user.trust_score) === 'number' ? (user.rating || user.trust_score).toFixed(1) : (user.rating || user.trust_score || 'N/A')}</span>
-                      <span>•</span>
-                      <span>{user.swaps || user.exchanges || 0} swaps</span>
                     </div>
                   </div>
-                </div>
 
                 {/* Bio */}
                 <div className="mb-4">
-                  <p className="text-sm text-slate-300 leading-relaxed">
-                    {user.bio === 'No bio available' ? (
-                      <span className="text-slate-400 italic">Looking to exchange skills and learn from others! 🤝</span>
-                    ) : (
-                      user.bio
-                    )}
-                  </p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{user.bio || 'No bio available'}</p>
                 </div>
 
                 {/* Top Skill */}
@@ -929,88 +1017,137 @@ export default function Explore() {
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center">
-                        <topSkill.icon className="w-4 h-4 text-purple-400" />
+                        {getSkillIcon(topSkill.category)}
                       </div>
                       <div>
-                        <h4 className="text-white font-medium">{topSkill.title}</h4>
-                        <p className="text-xs text-slate-500 capitalize">{topSkill.category}</p>
+                        <h4 className="text-white font-medium">{topSkill.title || 'New Member'}</h4>
+                        <p className="text-xs text-slate-500 capitalize">{topSkill.category || 'all'}</p>
                       </div>
                     </div>
                     
-                    {/* Display skills from skills table */}
-                    <div className="flex flex-wrap gap-1">
-                      {user.skills && user.skills.length > 0 ? (
-                        user.skills.slice(0, 3).map((skill: any, skillIndex: number) => (
-                          <span key={skillIndex} className="text-xs px-2 py-1 bg-white/5 border border-white/10 rounded-full text-slate-300">
-                            {skill.title}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-slate-400 italic">No skills added yet</span>
-                      )}
-                    </div>
+                    {/* Additional Skills */}
+                    {user.skills?.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {user.skills
+                          .slice(0, 3)
+                          .map((skill: any, skillIndex: number) => (
+                            <span key={skill.id || skillIndex} className="text-xs px-2 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full text-purple-300">
+                              {skill.title || 'Skill'}
+                            </span>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Action Button */}
-                {!loading && (() => {
-                  console.log('Current User ID:', currentUser?.id, 'Profile User ID:', user.user_id, 'Profile ID field:', user.id);
-                  const isMe = currentUser && (currentUser.id === user.user_id || currentUser.id === user.id);
-                  if (isMe) {
-                    return (
-                      <button
-                        onClick={() => router('/profile')}
-                        className="w-full px-4 py-2 border border-purple-500 text-purple-400 bg-transparent rounded-xl hover:bg-purple-500/10 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <User className="w-4 h-4" />
-                        <span>View Profile</span>
-                      </button>
-                    );
-                  } else if (!isMe) {
-                    return (
-                      <button
-                        onClick={() => handleSwapRequest(user.name || 'Unknown User')}
-                        className="w-full px-4 py-2 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all duration-300 flex items-center justify-center gap-2"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        <span>Request Swap</span>
-                      </button>
-                    );
-                  }
-                })()}
+                <div className="mt-auto">
+                  {(() => {
+                    // Check if user is in friends list from context
+                    const isFriend = friends.includes(user.id);
+                    
+                    if (isFriend) {
+                      return (
+                        <button
+                          onClick={() => openProfileModal(user)}
+                          className="w-full px-4 py-3 bg-transparent border-2 border-green-500 text-green-400 rounded-xl flex items-center justify-center gap-2 hover:bg-green-500/10 hover:border-green-400 hover:text-green-300 transition-all duration-300"
+                        >
+                          <span>Friends</span>
+                        </button>
+                      );
+                    }
+                    
+                    // Keep existing relationship status logic for pending requests
+                    const status = relationshipStatus.get(user.id) || 'none';
+                    
+                    switch (status) {
+                      case 'pending_sent':
+                        return (
+                          <button
+                            disabled
+                            className="w-full px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-xl flex items-center justify-center gap-2 cursor-not-allowed opacity-80"
+                          >
+                            <Clock className="w-4 h-4" />
+                            <span>Request Sent</span>
+                          </button>
+                        );
+                      case 'pending_received':
+                        return (
+                          <button
+                            onClick={() => navigate('/requests')}
+                            className="w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-400 hover:to-indigo-500 transition-all duration-300 flex items-center justify-center gap-2"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span>Review Request</span>
+                          </button>
+                        );
+                      default:
+                        return (
+                          <button
+                            onClick={() => openProfileModal(user)}
+                            className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all duration-300 flex items-center justify-center gap-2"
+                          >
+                            <User className="w-4 h-4" />
+                            <span>Request Swap</span>
+                          </button>
+                        );
+                    }
+                  })()}
+                </div>
               </motion.div>
-            )})}
-          </motion.div>
-        </AnimatePresence>
+            );
+          })}
+        </motion.div>
+      )}
+    </AnimatePresence>
 
-        {/* Empty State */}
-        {!loading && filteredUsers.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-24 glass-card"
-          >
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-6">
-              <Search className="w-10 h-10 text-purple-400" />
-            </div>
-            <h3 className="text-2xl font-semibold text-white mb-2">No experts found</h3>
-            <p className="text-slate-400 mb-6">Try adjusting your filters or search terms</p>
-            <button
-              onClick={() => {
-                setActiveCategory('all');
-                setSearchQuery('');
-                const allUsers = [...EGYPTIAN_EXPERTS, ...realUsers];
-                const filteredUsers = filterDuplicates(allUsers); // Filter duplicates when clearing filters
-                const stableSorted = getStableSortedUsers(filteredUsers);
-                setFilteredUsers(stableSorted);
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all"
-            >
-              Clear all filters
-            </button>
-          </motion.div>
-        )}
-      </div>
+    {/* No Results */}
+    {!isLoading && filteredProfiles.length === 0 && (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="text-center py-12"
+      >
+        <div className="w-24 h-24 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Search className="w-12 h-12 text-slate-600" />
+        </div>
+        <h3 className="text-xl font-semibold text-white mb-2">
+          {activeCategory !== 'all' 
+            ? `No experts found in ${SKILL_CATEGORIES.find(cat => cat.id === activeCategory)?.name || activeCategory}`
+            : 'No experts found'
+          }
+        </h3>
+        <p className="text-slate-400 mb-6">
+          {activeCategory !== 'all' 
+            ? 'Try exploring other categories or clear all filters'
+            : 'Try adjusting your search or filters'
+          }
+        </p>
+        <button
+          onClick={() => {
+            setActiveCategory('all');
+            setSearchQuery('');
+          }}
+          className="px-6 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all"
+        >
+          Clear all filters
+        </button>
+
+      </motion.div>
+    )}
+    
+      {/* Profile Preview Modal */}
+      <ProfilePreviewModal 
+        isOpen={profileModalOpen}
+        onClose={closeProfileModal}
+        user={selectedUser}
+        currentUser={currentUser}
+        onRequestSwap={handleSwapRequest}
+        onEditProfile={() => navigate('/profile')}
+        onMessage={handleMessageClick}
+        friends={friends}
+      />
     </div>
   );
 }

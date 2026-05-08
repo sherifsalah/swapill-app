@@ -31,7 +31,7 @@ const STEPS = [
 
 export default function HowItWorks() {
   return (
-    <div className="pt-32 pb-24 max-w-5xl mx-auto px-6">
+    <div className="pt-8 pb-24 max-w-5xl mx-auto px-6">
       <div className="text-center mb-20">
         <h1 className="text-4xl md:text-5xl font-bold mb-6">How Swapill Works</h1>
         <p className="text-slate-400 text-lg max-w-2xl mx-auto leading-relaxed">

@@ -1,43 +1,99 @@
 import { motion } from "motion/react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { MessageSquare, LayoutDashboard, Compass, Info, User, LogOut, Menu, X, Loader2 } from "lucide-react";
+import { MessageSquare, LayoutDashboard, Compass, Info, User, LogOut, Menu, X, Loader2, Bell } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { useState, useEffect } from "react";
-import AuthModal from "../auth/AuthModal";
+import React, { useState, useEffect } from "react";
 import { supabase } from "../../config/supabase";
 import { useAuth } from "../../App";
+import { useUserProfile } from "../../contexts/UserProfileContext.tsx";
 import toast from 'react-hot-toast';
+import IncomingRequests from "../IncomingRequests";
 
-interface UserData {
-  name: string;
-  email: string;
-  country: string;
-  phone: string;
-}
-
-// Modern Avatar Component for Navbar
-function UserAvatar({ name, size = "small" }: { name: string; size?: "small" | "medium" }) {
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+// Modern Avatar Component for Navbar - Blocks dicebear URLs
+function UserAvatar({ avatarUrl, name, size = "small" }: { avatarUrl?: string; name: string; size?: "small" | "medium" }) {
   const sizeClasses = {
     small: "w-8 h-8 text-xs",
     medium: "w-10 h-10 text-sm"
   };
   
-  const avatarColors = [
-    'from-purple-500 to-violet-600',
-    'from-blue-500 to-indigo-600',
-    'from-pink-500 to-rose-600',
-    'from-green-500 to-emerald-600'
-  ];
+  // Get first two letters of name
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
   
-  const colorIndex = name.charCodeAt(0) % avatarColors.length;
+  // Professional calm colors for Navbar
+  const getAvatarColor = (userName: string) => {
+    const colors = [
+      'from-slate-600 to-slate-700', 
+      'from-gray-600 to-gray-700', 
+      'from-neutral-600 to-neutral-700', 
+      'from-stone-600 to-stone-700',
+      'from-zinc-600 to-zinc-700'
+    ];
+    const color = colors[userName ? userName.charCodeAt(0) % colors.length : 0];
+    return color;
+  };
   
+  // Handle image errors with fallback to initials
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    // Fallback to initials circle
+    target.style.display = 'none';
+    const parent = target.parentElement;
+    if (parent && !parent.querySelector('.fallback-circle')) {
+      const fallback = document.createElement('div');
+      fallback.className = `fallback-circle absolute inset-0 flex items-center justify-center bg-gradient-to-br ${getAvatarColor(name)} rounded-full text-white font-semibold ${sizeClasses[size]}`;
+      fallback.textContent = getInitials(name);
+      parent.appendChild(fallback);
+    }
+  };
+  
+  // Handle image load success
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    target.style.opacity = '1';
+  };
+  
+  // BLOCK dicebear URLs and show colored initials instead
+  if (avatarUrl && avatarUrl.includes('dicebear.com')) {
+    return (
+      <div className={cn(
+        "rounded-full bg-gradient-to-br flex items-center justify-center border-2 border-white/20",
+        getAvatarColor(name),
+        sizeClasses[size]
+      )}>
+        <span className="text-white font-semibold">{getInitials(name)}</span>
+      </div>
+    );
+  }
+  
+  // Show real photo only if it's NOT a dicebear URL
+  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
+    return (
+      <div className="relative">
+        <img 
+          src={avatarUrl}
+          alt={name}
+          onError={handleImageError}
+          onLoad={handleImageLoad}
+          style={{ opacity: '0', transition: 'opacity 0.3s ease' }}
+          className={cn(
+            "rounded-full object-cover border-2 border-white/20",
+            sizeClasses[size].split(' ')[0] + ' ' + sizeClasses[size].split(' ')[1] // Get only w/h classes
+          )}
+        />
+      </div>
+    );
+  }
+  
+  // Default to professional circle with initials
   return (
     <div className={cn(
-      "rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold border-2 border-white/20",
+      "rounded-full bg-gradient-to-br flex items-center justify-center border-2 border-white/20",
+      getAvatarColor(name),
       sizeClasses[size]
     )}>
-      {initials}
+      <span className="text-white font-semibold">{getInitials(name)}</span>
     </div>
   );
 }
@@ -46,62 +102,63 @@ export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading, signOut } = useAuth();
+  const { currentUser: userProfile } = useUserProfile();
   const [isScrolled, setIsScrolled] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [currentUser, setCurrentUser] = useState<UserData | null>(null);
-  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
+    const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
+  const [requestsModalOpen, setRequestsModalOpen] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
-  // Update current user and fetch avatar_url when auth state changes
-  useEffect(() => {
-    if (user) {
-      const userData: UserData = {
-        name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-        email: user.email || '',
-        country: user.user_metadata?.country || 'Unknown',
-        phone: user.phone || ''
-      };
-      setCurrentUser(userData);
-      
-      // Fetch avatar_url from profiles table
-      fetchUserAvatar(user.id);
-      
-      // Close auth modal when user is found
-      setAuthModalOpen(false);
-    } else {
-      setCurrentUser(null);
-      setUserAvatarUrl(null);
-    }
-  }, [user]);
+  // All hooks are now defined at the top before any conditional logic
 
-  // Fetch user avatar from profiles table
-  const fetchUserAvatar = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('user_id', userId)
-        .single();
-      
-      if (error) {
-        console.error('Error fetching user avatar:', error);
-        setUserAvatarUrl(null);
-      } else {
-        setUserAvatarUrl(data?.avatar_url || null);
-      }
-    } catch (error) {
-      console.error('Unexpected error fetching avatar:', error);
-      setUserAvatarUrl(null);
-    }
-  };
-
+  
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  // Fetch pending requests count
+  useEffect(() => {
+    const fetchPendingRequestsCount = async () => {
+      if (!user) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('swap_requests')
+          .select('id')
+          .eq('receiver_id', user.id)
+          .eq('status', 'pending');
+
+        if (error) {
+          console.error('Error fetching pending requests count:', error);
+        } else {
+          setPendingRequestsCount(data?.length || 0);
+        }
+      } catch (error) {
+        console.error('Error in fetchPendingRequestsCount:', error);
+      }
+    };
+
+    fetchPendingRequestsCount();
+
+    // Set up real-time subscription for new requests
+    const channel = supabase
+      .channel('swap_requests')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'swap_requests',
+        filter: `receiver_id=eq.${user.id}`
+      }, (payload) => {
+        fetchPendingRequestsCount(); // Refetch count on any change
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   const handleLogout = () => {
     setLogoutModalOpen(true);
@@ -124,16 +181,13 @@ export default function Navbar() {
       
       console.log('Successfully signed out from Supabase');
       
-      // Clear all local states
-      setCurrentUser(null);
       setLogoutModalOpen(false);
-      setAuthModalOpen(false);
-      
+            
       // Clear any localStorage data
       localStorage.removeItem('swapill_user');
       
-      // Force navigation to home page
-      navigate('/', { replace: true });
+      // Force navigation to login page
+      window.location.replace('/login');
       
       toast.success('Logged out successfully');
       
@@ -142,11 +196,9 @@ export default function Navbar() {
       toast.error('An error occurred during logout');
       
       // Still try to clean up and redirect on error
-      setCurrentUser(null);
       setLogoutModalOpen(false);
-      setAuthModalOpen(false);
-      localStorage.removeItem('swapill_user');
-      navigate('/', { replace: true });
+            localStorage.removeItem('swapill_user');
+      window.location.replace('/login');
     } finally {
       setIsLoggingOut(false);
     }
@@ -159,122 +211,118 @@ export default function Navbar() {
   };
 
   const navLinks = [
-    { name: "Explore", path: "/explore", icon: Compass, requiresAuth: false },
-    { name: "How It Works", path: "/how-it-works", icon: Info, requiresAuth: false },
-    { name: "Chat", path: "/chat", icon: MessageSquare, requiresAuth: true },
-    { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard, requiresAuth: true },
+    { name: 'Explore', path: '/explore', icon: Compass, requiresAuth: false },
+    { name: 'Profile', path: '/profile', icon: User, requiresAuth: true },
+    { name: 'Chat', path: '/chat', icon: MessageSquare, requiresAuth: true }
   ];
 
-  return (
-    <nav
-      className={cn(
-        "fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-4",
-        isScrolled ? "bg-slate-950/80 backdrop-blur-md border-b border-white/5 py-3" : "bg-transparent"
-      )}
-    >
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#667eea] to-[#764ba2] flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
-            <span className="text-white font-bold text-xl">S</span>
-          </div>
-          <span className="text-white font-bold text-xl tracking-tight">Swapill</span>
-        </Link>
-
-        {/* Desktop Nav */}
-        <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => {
-            const isDisabled = link.requiresAuth && !user;
-            return (
-              <div key={link.path}>
-                {isDisabled ? (
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-not-allowed">
-                    <link.icon className="w-4 h-4" />
-                    {link.name}
-                  </span>
-                ) : (
-                  <Link
-                    to={link.path}
-                    className={cn(
-                      "flex items-center gap-2 text-sm font-medium transition-colors hover:text-white",
-                      location.pathname === link.path ? "text-white" : "text-slate-400"
-                    )}
-                  >
-                    <link.icon className="w-4 h-4" />
-                    {link.name}
-                  </Link>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-center gap-4">
-          {user && currentUser ? (
-            <div className="flex items-center gap-4">
-              {userAvatarUrl ? (
-                <Link to="/profile" className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
-                  <img 
-                    src={userAvatarUrl} 
-                    alt={currentUser?.name} 
-                    className="w-8 h-8 rounded-full object-cover border-2 border-slate-950"
-                  />
-                  <span className="text-sm font-medium text-gray-200 hidden sm:block">{currentUser?.name}</span>
-                </Link>
-              ) : (
-                <div className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-gradient-to-br from-purple-500 to-violet-600 border-2 border-slate-950">
-                  <span className="text-white font-bold text-sm">
-                    {currentUser?.name?.charAt(0)?.toUpperCase() || 'U'}
-                  </span>
-                  <span className="text-sm font-medium text-gray-200 hidden sm:block">{currentUser?.name}</span>
+  // Conditionally render Navbar only when not on chat page
+  if (location.pathname !== '/chat') {
+    return (
+      <nav
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-3",
+          isScrolled ? "bg-slate-950/80 backdrop-blur-md border-b border-white/5 py-2" : "bg-transparent"
+        )}
+      >
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          
+          {/* Desktop Nav */}
+          <div className="hidden md:flex items-center gap-8">
+            {navLinks.map((link) => {
+              const isDisabled = link.requiresAuth && !user;
+              return (
+                <div key={link.path}>
+                  {isDisabled ? (
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-600 cursor-not-allowed">
+                      <link.icon className="w-4 h-4" />
+                      {link.name}
+                    </span>
+                  ) : (
+                    <Link
+                      to={link.path}
+                      className={cn(
+                        "flex items-center gap-2 text-sm font-medium transition-colors hover:text-white",
+                        location.pathname === link.path ? "text-white" : "text-slate-400"
+                      )}
+                    >
+                      <link.icon className="w-4 h-4" />
+                      {link.name}
+                    </Link>
+                  )}
                 </div>
-              )}
-              <button 
-                onClick={handleLogout}
-                className="p-2 rounded-full h-10 w-10 flex items-center justify-center bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-all"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button 
-                onClick={() => {
-                  setAuthMode('login');
-                  setAuthModalOpen(true);
-                }}
-                className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 transition-colors"
-              >
-                Login
-              </button>
-              <button 
-                onClick={() => {
-                  setAuthMode('signup');
-                  setAuthModalOpen(true);
-                }}
-                className="btn-primary text-sm px-6 py-2"
-              >
-                Sign Up
-              </button>
-            </div>
-          )}
-          <button className="md:hidden p-2 text-slate-400 hover:text-white transition-colors">
-            <Menu className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-      {!loading && !user && (
-        <AuthModal 
-          isOpen={authModalOpen}
-          onClose={() => setAuthModalOpen(false)}
-          mode={authMode}
-          onModeChange={setAuthMode}
-          onAuthSuccess={() => {
-            // Auth success is handled by AuthProvider, no action needed here
-          }}
-        />
-      )}
+              );
+            })}
+          </div>
 
+          <div className="flex items-center gap-4">
+            {user ? (
+              <div className="flex items-center gap-3">
+                <Link to="/profile" className="flex items-center gap-2 group p-1 pr-3 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-all">
+                  <UserAvatar 
+                    avatarUrl={userProfile?.avatar_url} 
+                    name={userProfile?.name || user.email?.split('@')[0] || 'User'} 
+                    size="small" 
+                  />
+                  <span className="text-sm font-medium text-gray-200 hidden sm:block">{userProfile?.name || user.email?.split('@')[0]}</span>
+                </Link>
+                
+                {/* Notification Bell */}
+                <button
+                  onClick={() => setRequestsModalOpen(true)}
+                  className="relative p-2 rounded-full h-10 w-10 flex items-center justify-center bg-white/5 border border-white/10 hover:bg-purple-500/10 hover:border-purple-500/20 hover:text-purple-400 transition-all"
+                  title="Incoming Requests"
+                >
+                  <Bell className="w-5 h-5" />
+                  {pendingRequestsCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                      {pendingRequestsCount > 9 ? '9+' : pendingRequestsCount}
+                    </span>
+                  )}
+                </button>
+                
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 rounded-full h-10 w-10 flex items-center justify-center bg-white/5 border border-white/10 hover:bg-red-500/10 hover:border-red-500/20 hover:text-red-400 transition-all"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => navigate('/login')}
+                  className="text-sm font-medium text-gray-300 hover:text-white px-4 py-2 transition-colors"
+                >
+                  Login
+                </button>
+                <button 
+                  onClick={() => navigate('/signup')}
+                  className="btn-primary text-sm px-6 py-2"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+            <button className="md:hidden p-2 text-slate-400 hover:text-white transition-colors">
+              <Menu className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      </nav>
+    );
+  }
+
+  // Return the logout modal for all pages except chat
+  return (
+    <>
+      {/* Incoming Requests Modal */}
+      <IncomingRequests 
+        isOpen={requestsModalOpen} 
+        onClose={() => setRequestsModalOpen(false)} 
+      />
+      
       {/* Logout Confirmation Modal */}
       {logoutModalOpen && (
         <motion.div
@@ -344,6 +392,7 @@ export default function Navbar() {
           </motion.div>
         </motion.div>
       )}
-    </nav>
+      </>
   );
 }
+

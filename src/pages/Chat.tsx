@@ -1,36 +1,63 @@
-import { useState, useRef, useEffect } from "react";
-import { Send, Image, Paperclip, MoreVertical, Phone, Video, Search, MessageCircle } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Send, Image, Paperclip, MoreVertical, Phone, Video, Search, MessageCircle, Plus, Smile, Users, Wifi, WifiOff, Mic } from "lucide-react";
 import { cn } from "../lib/utils";
 import { motion } from "motion/react";
 import { supabase } from '../config/supabase';
+import { useNavigate, useParams } from 'react-router-dom';
+import LogoutModal from '../components/shared/LogoutModal';
+import { getSafeName, getSafeAvatar, getSafeInitials } from '../utils/safeFallbacks';
+import { shouldRenderConversation, filterValidConversations } from '../utils/userValidation';
 
-interface Profile { user_id: string; full_name: string | null; bio: string | null; avatar_url: string | null; }
+interface Profile { id: string; full_name: string | null; bio: string | null; avatar_url: string | null; }
 interface Conversation { id: string; participant_one: string; participant_two: string; created_at: string; other_user?: Profile; last_message?: string; last_message_time?: string; }
 interface Message { id: string; conversation_id: string; sender_id: string; content: string; created_at: string; is_read: boolean; }
 
-function ModernAvatar({ name, size = "medium", avatarUrl }: { name: string; size?: "small" | "medium" | "large"; avatarUrl?: string | null }) {
-  const initials = name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
-  const sizeClasses = { small: "w-7 h-7 text-xs", medium: "w-9 h-9 text-sm", large: "w-11 h-11 text-base" };
-  const colors = ['from-purple-500 to-violet-600', 'from-blue-500 to-indigo-600', 'from-pink-500 to-rose-600', 'from-green-500 to-emerald-600'];
-  const color = colors[name ? name.charCodeAt(0) % colors.length : 0];
+// Modern Avatar Component with Colorful Initials
+function ModernAvatar({ name, size = "medium", avatarUrl, isCurrentUser = false }: { 
+  name: string; 
+  size?: "small" | "medium" | "large"; 
+  avatarUrl?: string | null; 
+  isCurrentUser?: boolean;
+}) {
+  // Use safe fallback utilities
+  const safeName = name || 'Member';
+  const initials = getSafeInitials(safeName);
+  const sizeClasses = { 
+    small: "w-12 h-12 text-sm", 
+    medium: "w-14 h-14 text-base", 
+    large: "w-16 h-16 text-lg" 
+  };
   
-  // If avatarUrl exists, show image, otherwise show colored avatar
-  if (avatarUrl) {
+  // Professional color palette for initials
+  const colors = [
+    'from-blue-500 to-blue-600', 
+    'from-pink-500 to-pink-600', 
+    'from-yellow-500 to-yellow-600', 
+    'from-orange-500 to-orange-600',
+    'from-green-500 to-green-600'
+  ];
+  const color = colors[safeName ? safeName.charCodeAt(0) % colors.length : 0];
+  
+  // Show real photo if available for any user
+  if (avatarUrl && avatarUrl.trim() !== '') {
     return (
-      <div className={cn(`rounded-full overflow-hidden border border-white/20`, sizeClasses[size])}>
-        <img src={avatarUrl} alt={name} className="w-full h-full object-cover" />
+      <div className={`rounded-full overflow-hidden border border-white/20 ${sizeClasses[size]}`}>
+        <img src={avatarUrl} alt={safeName} className="w-full h-full object-cover rounded-full aspect-square" />
       </div>
     );
   }
   
+  // Otherwise show colored initials
   return (
-    <div className={cn(`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20`, sizeClasses[size])}>
+    <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
       {initials}
     </div>
   );
 }
 
 export default function Chat() {
+  const navigate = useNavigate();
+  const { conversationId } = useParams<{ conversationId?: string }>();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -43,10 +70,31 @@ export default function Chat() {
   const [isSearching, setIsSearching] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadingConversation, setLoadingConversation] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(false);
   const [sending, setSending] = useState(false);
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const realtimeRef = useRef<any>(null);
+
+  // Pass conversations count to parent via custom event
+  useEffect(() => {
+    if (conversations.length > 0) {
+      const event = new CustomEvent('updateConversationsCount', { detail: conversations.length });
+      window.dispatchEvent(event);
+    }
+  }, [conversations.length]);
+  
+  // Real-time presence states with realistic tracking
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
+  const [userPresences, setUserPresences] = useState<Map<string, 'online' | 'offline' | 'away'>>(new Map());
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  
+  // Simulate realistic presence for demo (remove in production)
+  const [lastSeen, setLastSeen] = useState<Map<string, Date>>(new Map());
+  
+  // Track recently added friends for badge display
+  const [recentlyAddedFriends, setRecentlyAddedFriends] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const getUser = async () => {
@@ -54,15 +102,88 @@ export default function Chat() {
       if (session?.user) setCurrentUser(session.user);
     };
     getUser();
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
       setCurrentUser(session?.user || null);
     });
+    
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const setupRealtimeSubscription = async () => {
+      if (!currentUser?.id) return;
+      
+      const channel = supabase.channel(`chat_${currentUser.id}`);
+      
+      channel
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newMessage = payload.new;
+            if (newMessage.conversation_id === activeConversation?.id) {
+              setMessages(prev => [...prev, {
+                id: newMessage.id,
+                conversation_id: newMessage.conversation_id,
+                sender_id: newMessage.sender_id,
+                content: newMessage.content,
+                created_at: newMessage.created_at,
+                is_read: false
+              }]);
+              setConversations(prev => prev.map(c => c.id === activeConversation.id ? { ...c, last_message: newMessage.content, last_message_time: newMessage.created_at } : c));
+            }
+          }
+        })
+        .subscribe();
+        
+      channel
+        .on('broadcast', { event: 'typing' }, (payload) => {
+          setTypingUsers(prev => {
+            const newTypingUsers = new Set(prev);
+            if (payload.payload.user_id !== currentUser.id && payload.payload.status === 'typing') {
+              newTypingUsers.add(payload.payload.user_id);
+            } else {
+              newTypingUsers.delete(payload.payload.user_id);
+            }
+            return newTypingUsers;
+          });
+        })
+        .subscribe();
+      
+      realtimeRef.current = { channel, unsubscribe: () => channel.unsubscribe() };
+    };
+    
+    if (currentUser) {
+      setupRealtimeSubscription();
+    }
+    
+    return () => {
+      if (realtimeRef.current) {
+        realtimeRef.current.unsubscribe();
+      }
+    };
+  }, [currentUser?.id, activeConversation?.id]);
+
   useEffect(() => { 
-    loadAllUsers(); // Load users on component mount
-  }, []);
+    if (currentUser) {
+      loadAllUsers(); // Load users only when current user is available
+    }
+  }, [currentUser]);
+
+  // Handle URL parameter for direct user chat
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const targetUserId = urlParams.get('user');
+    
+    if (targetUserId && allUsers.length > 0) {
+      const targetUser = allUsers.find(user => user.id === targetUserId);
+      if (targetUser) {
+        setSelectedUser(targetUser);
+        startConversationWith(targetUser);
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+    }
+  }, [allUsers, currentUser]);
 
   useEffect(() => { 
     if (currentUser) { 
@@ -105,30 +226,61 @@ export default function Chat() {
 
   const loadAllUsers = async () => {
     setLoadingUsers(true);
+    
+    // Fetch users from conversations table - show all profiles where id is either participant_one or participant_two in my active conversations
     const { data, error } = await supabase
-      .from('profiles')
-      .select('user_id, full_name, avatar_url, bio')
-      .order('full_name', { ascending: true });
+      .from('conversations')
+      .select(`
+        *,
+        participant_one_profile:participant_one (id, full_name, avatar_url, bio),
+        participant_two_profile:participant_two (id, full_name, avatar_url, bio)
+      `)
+      .or(`participant_one.eq.${currentUser?.id},participant_two.eq.${currentUser?.id}`);
     
     if (error) {
       console.error('Error loading users:', error);
     } else {
-      // Remove duplicates and filter out current user
-      const uniqueUsers = data || [];
+      // Process conversations to extract unique users (excluding current user)
+      const conversations = data || [];
+      const uniqueUsers: Profile[] = [];
       const seenUserIds = new Set();
-      const filteredData = uniqueUsers.filter(user => {
-        // Skip current user
-        if (currentUser && user.user_id === currentUser.id) return false;
+      
+      conversations.forEach(conv => {
+        // Add participant_one if not current user and not already added
+        if (conv.participant_one_profile && 
+            conv.participant_one !== currentUser?.id && 
+            !seenUserIds.has(conv.participant_one_profile.id)) {
+          uniqueUsers.push(conv.participant_one_profile);
+          seenUserIds.add(conv.participant_one_profile.id);
+        }
         
-        // Skip duplicates
-        if (seenUserIds.has(user.user_id)) return false;
-        seenUserIds.add(user.user_id);
+        // Add participant_two if not current user and not already added
+        if (conv.participant_two_profile && 
+            conv.participant_two !== currentUser?.id && 
+            !seenUserIds.has(conv.participant_two_profile.id)) {
+          uniqueUsers.push(conv.participant_two_profile);
+          seenUserIds.add(conv.participant_two_profile.id);
+        }
+      });
+      
+      const filteredData = uniqueUsers.filter(user => {
+        // Skip null/undefined users
+        if (!user || user === null) return false;
         
         return true;
       });
       
       setAllUsers(filteredData);
       setFilteredUsers(filteredData);
+      
+      // Auto-select first user if no user is selected and we have available users
+      if (!selectedUser && filteredData.length > 0) {
+        setSelectedUser(filteredData[0]);
+      }
+      // If current user was selected, switch to first available user
+      else if (selectedUser && currentUser && selectedUser.id === currentUser.id && filteredData.length > 0) {
+        setSelectedUser(filteredData[0]);
+      }
     }
     setLoadingUsers(false);
   };
@@ -141,15 +293,60 @@ export default function Chat() {
   const loadConversations = async () => {
     if (!currentUser) return;
     setLoadingConversations(true);
-    const { data, error } = await supabase.from('conversations').select('*').or(`participant_one.eq.${currentUser.id},participant_two.eq.${currentUser.id}`).order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('conversations')
+      .select(`
+        *,
+        participant_one_profile:participant_one (
+          id, 
+          full_name, 
+          username, 
+          email, 
+          avatar_url, 
+          bio
+        ),
+        participant_two_profile:participant_two (
+          id, 
+          full_name, 
+          username, 
+          email, 
+          avatar_url, 
+          bio
+        )
+      `)
+      .or(`participant_one.eq.${currentUser.id},participant_two.eq.${currentUser.id}`)
+      .order('created_at', { ascending: false });
     if (error || !data || data.length === 0) { setLoadingConversations(false); return; }
     const enriched = await Promise.all(data.map(async (conv) => {
       const otherId = conv.participant_one === currentUser.id ? conv.participant_two : conv.participant_one;
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', otherId).single();
+      const isParticipantOne = conv.participant_one === currentUser.id;
+      
+      // Use joined profile data
+      const profileData = isParticipantOne ? conv.participant_two_profile : conv.participant_one_profile;
       const { data: lastMsg } = await supabase.from('messages').select('content, created_at').eq('conversation_id', conv.id).order('created_at', { ascending: false }).limit(1).single();
-      return { ...conv, other_user: profile || { id: otherId, full_name: 'Unknown', email: null, avatar_url: null }, last_message: lastMsg?.content || 'No messages yet', last_message_time: lastMsg?.created_at || conv.created_at };
+      
+      // Safe fallback logic for user data
+      const safeName = getSafeName(profileData, { id: otherId });
+      const safeProfile = profileData || { 
+        id: otherId, 
+        full_name: safeName, 
+        email: null, 
+        avatar_url: getSafeAvatar(profileData, safeName)
+      };
+      
+      return { 
+        ...conv, 
+        other_user: safeProfile, 
+        last_message: lastMsg?.content || 'No messages yet', 
+        last_message_time: lastMsg?.created_at || conv.created_at 
+      };
     }));
-    setConversations(enriched);
+    
+    // Filter out corrupted conversations using validation utilities
+    const validConversations = filterValidConversations(enriched);
+    
+    console.log(`Filtered conversations: ${validConversations.length} valid out of ${enriched.length} total`);
+    setConversations(validConversations);
     setLoadingConversations(false);
   };
 
@@ -178,6 +375,60 @@ export default function Chat() {
     openConversation(newConv);
   };
 
+  // Load conversation when conversationId is present in URL
+  useEffect(() => {
+    if (conversationId && currentUser) {
+      const loadConversationFromUrl = async () => {
+        setLoadingConversation(true);
+        try {
+          // Fetch conversation details
+          const { data: conversation, error: convError } = await supabase
+            .from('conversations')
+            .select(`
+              *,
+              participant_one_profile:participant_one (
+                id, full_name, avatar_url, bio
+              ),
+              participant_two_profile:participant_two (
+                id, full_name, avatar_url, bio
+              )
+            `)
+            .eq('id', conversationId)
+            .single();
+
+          if (convError) {
+            console.error('Error loading conversation:', convError);
+            return;
+          }
+
+          if (conversation) {
+            // Determine which participant is the other user
+            const otherUser = conversation.participant_one === currentUser.id 
+              ? conversation.participant_two_profile
+              : conversation.participant_one_profile;
+
+            const conversationWithUser: Conversation = {
+              ...conversation,
+              other_user: otherUser
+            };
+
+            setActiveConversation(conversationWithUser);
+            setSelectedUser(otherUser);
+            
+            // Load messages for this conversation
+            await loadMessages(conversationId);
+          }
+        } catch (error) {
+          console.error('Error loading conversation from URL:', error);
+        } finally {
+          setLoadingConversation(false);
+        }
+      };
+
+      loadConversationFromUrl();
+    }
+  }, [conversationId, currentUser]);
+
   const sendMessage = async () => {
     if (!inputVal.trim() || !activeConversation || !currentUser || sending) return;
     const content = inputVal.trim();
@@ -203,112 +454,264 @@ export default function Chat() {
     return `${Math.floor(mins / 1440)}d ago`;
   };
 
+  const handleLogout = () => {
+    setLogoutModalOpen(true);
+  };
+
   return (
-    <div className="h-screen w-full flex bg-slate-900">
-      {/* Left Sidebar - 350px fixed width */}
-      <aside className="w-[350px] bg-slate-800 border-r border-slate-700 flex flex-col">
+    <div className="flex h-[calc(100vh-64px)] w-full overflow-hidden bg-transparent">
+      <div className="flex-1 overflow-hidden flex">
+        {/* Sidebar - Professional Design */}
+        <aside className="w-80 h-full bg-slate-800/50 backdrop-blur-md border-r border-purple-500/10 flex flex-col pt-0">
         {/* Sidebar Header */}
-        <div className="p-6 border-b border-slate-700">
-          <h2 className="text-xl font-bold mb-4 text-white">Messages</h2>
+        <div className="p-5 border-b border-slate-700/50">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-lg font-semibold text-white">Messages ({conversations.length})</h2>
+            <button className="p-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors">
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search users..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="w-full bg-slate-700 border border-slate-600 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-purple-500 text-white placeholder:text-slate-400" 
+            <input
+              type="text"
+              placeholder="Search Message..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-800/50 border border-slate-600/50 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20 backdrop-blur-sm"
             />
           </div>
         </div>
 
-        {/* Users List - Scrollable */}
+        {/* Sidebar Content - Scrollable */}
         <div className="flex-1 overflow-y-auto">
-          {loadingUsers ? (
-            <div className="p-6 text-center text-slate-400 text-sm">Loading users...</div>
-          ) : (
-            <div className="p-4">
-              <div className="p-2 text-xs text-slate-500 font-semibold uppercase tracking-wider mb-3">
-                ALL USERS ({allUsers.length})
-              </div>
-              {allUsers.map(profile => (
-                <button 
-                  key={profile.user_id} 
-                  type="button" 
-                  onClick={() => selectUser(profile)} 
-                  className={cn(
-                    "w-full flex items-center gap-3 px-4 py-3 transition-all cursor-pointer rounded-lg mb-2",
-                    selectedUser?.user_id === profile.user_id 
-                      ? "bg-purple-600/20 border border-purple-500/30" 
-                      : "hover:bg-slate-700/50"
-                  )}
+          {/* Active Users Section - Stories Style */}
+          <div className="px-5 py-4">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Active</h3>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {filteredUsers.slice(0, 6).map((profile) => (
+                <button
+                  key={profile.id}
+                  onClick={() => selectUser(profile)}
+                  className="flex-shrink-0 flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-700/30 transition-all cursor-pointer group"
                 >
-                  <ModernAvatar name={profile.full_name || 'User'} size="small" avatarUrl={profile.avatar_url} />
-                  <div className="text-left flex-grow">
-                    <div className="text-sm font-medium text-gray-200">{profile.full_name || 'Unknown User'}</div>
-                    {profile.bio && (
-                      <div className="text-xs text-slate-400 truncate">{profile.bio}</div>
-                    )}
+                  <div className="relative">
+                    <ModernAvatar 
+                      name={getSafeName(profile)} 
+                      size="small" 
+                      avatarUrl={profile?.avatar_url}
+                      isCurrentUser={false}
+                    />
+                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-slate-800"></div>
+                  </div>
+                  <div className="text-xs text-slate-300 text-center max-w-[60px] truncate">
+                    {getSafeName(profile).split(' ')[0]}
                   </div>
                 </button>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* Pinned Messages Section */}
+          <div className="px-5 py-3 border-t border-slate-700/30">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Pinned Message</h3>
+            <div className="space-y-1">
+              {conversations.slice(0, 2).map((conv) => {
+                const friendProfile = conv.participant_one === currentUser?.id ? conv.participant_two_profile : conv.participant_one_profile;
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => openConversation(conv)}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all cursor-pointer relative ${
+                      activeConversation?.id === conv.id 
+                        ? 'bg-purple-600/20 border-l-4 border-l-purple-500' 
+                        : 'hover:bg-slate-700/30'
+                    }`}
+                  >
+                    <div className="relative">
+                      <ModernAvatar 
+                        name={getSafeName(friendProfile || {})} 
+                        size="small" 
+                        avatarUrl={friendProfile?.avatar_url}
+                        isCurrentUser={false}
+                      />
+                      {/* Unread Badge */}
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        1
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-sm font-semibold text-white truncate">
+                        {getSafeName(friendProfile || {})}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate">
+                        {conv.last_message || 'No messages yet'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {conv.last_message_time ? formatTime(conv.last_message_time) : ''}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* All Messages Section */}
+          <div className="px-5 py-3 border-t border-slate-700/30">
+            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">All Messages</h3>
+            <div className="space-y-1">
+              {conversations.slice(2).map((conv) => {
+                const friendProfile = conv.participant_one === currentUser?.id ? conv.participant_two_profile : conv.participant_one_profile;
+                return (
+                  <button
+                    key={conv.id}
+                    onClick={() => openConversation(conv)}
+                    className={`w-full flex items-center gap-3 p-2.5 rounded-lg transition-all cursor-pointer relative ${
+                      activeConversation?.id === conv.id 
+                        ? 'bg-purple-600/20 border-l-4 border-l-purple-500' 
+                        : 'hover:bg-slate-700/30'
+                    }`}
+                  >
+                    <div className="relative">
+                      <ModernAvatar 
+                        name={getSafeName(friendProfile || {})} 
+                        size="small" 
+                        avatarUrl={friendProfile?.avatar_url}
+                        isCurrentUser={false}
+                      />
+                      {/* Unread Badge */}
+                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                        2
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <div className="text-sm font-semibold text-white truncate">
+                        {getSafeName(friendProfile || {})}
+                      </div>
+                      <div className="text-xs text-slate-400 truncate">
+                        {conv.last_message || 'No messages yet'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {conv.last_message_time ? formatTime(conv.last_message_time) : ''}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </aside>
 
-      {/* Right Chat Window - Takes remaining space */}
-      <main className="flex-1 flex flex-col bg-slate-900">
+      {/* Chat Window - Takes remaining space */}
+      <main className="flex-1 h-full flex flex-col bg-slate-900/30 backdrop-blur-sm">
         {selectedUser ? (
           <>
-            {/* Chat Header */}
-            <header className="p-4 border-b border-slate-700 bg-slate-800/50">
-              <div className="flex items-center gap-3">
-                <ModernAvatar name={selectedUser.full_name || 'User'} size="medium" avatarUrl={selectedUser.avatar_url} />
-                <div className="flex-1">
-                  <div className="font-bold text-gray-200">{selectedUser.full_name || 'Unknown User'}</div>
+            {/* Chat Header - Compact */}
+            <header className="h-12 border-b border-slate-700/30 bg-slate-800/30 backdrop-blur-md flex items-center px-4">
+              <div className="flex items-center gap-3 flex-1">
+                <ModernAvatar 
+                  name={selectedUser.full_name || 'User'} 
+                  size="small" 
+                  avatarUrl={selectedUser.avatar_url}
+                  isCurrentUser={false}
+                />
+                <div>
+                  <div className="font-semibold text-white text-sm">{selectedUser?.full_name || 'Unknown User'}</div>
                   <div className="text-xs text-green-400 flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" /> 
-                    Active now
+                    <div className="w-2 h-2 rounded-full bg-green-400 relative">
+                      <div className="absolute inset-0 rounded-full bg-green-400 animate-ping" />
+                    </div>
+                    Active Now
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button className="p-2 rounded-lg hover:bg-slate-700 text-gray-300"><Phone className="w-4 h-4" /></button>
-                  <button className="p-2 rounded-lg hover:bg-slate-700 text-gray-300"><Video className="w-4 h-4" /></button>
-                  <button className="p-2 rounded-lg hover:bg-slate-700 text-gray-300"><MoreVertical className="w-4 h-4" /></button>
-                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="p-1.5 rounded-lg hover:bg-slate-700/50 text-gray-300 transition-colors">
+                  <Phone className="w-3.5 h-3.5" />
+                </button>
+                <button className="p-1.5 rounded-lg hover:bg-slate-700/50 text-gray-300 transition-colors">
+                  <Video className="w-3.5 h-3.5" />
+                </button>
               </div>
             </header>
 
-            {/* Message Area - Darker background for eye comfort */}
-            <div className="flex-1 overflow-y-auto p-6 bg-slate-950/30">
-              <div className="flex flex-col items-center justify-center h-full text-center py-16">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mb-6 border border-purple-500/30">
-                  <MessageCircle className="w-10 h-10 text-purple-400" />
+            {/* Messages Area - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {messages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mb-4">
+                    <MessageCircle className="w-8 h-8 text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-200 mb-2">Start the conversation</h3>
+                  <p className="text-gray-400 text-sm">Send your first message to {selectedUser?.full_name || 'this user'}</p>
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-200 mb-3">Start chatting with {selectedUser.full_name}!</h3>
-                <p className="text-gray-400 text-base max-w-lg leading-relaxed">Send your first message and start the skill swap conversation 🚀</p>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  {messages.map((message) => {
+                    const isMyMessage = message.sender_id === currentUser?.id;
+                    return (
+                      <div key={message.id} className={`flex ${isMyMessage ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs lg:max-w-md flex gap-2 ${isMyMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+                          {!isMyMessage && (
+                            <ModernAvatar 
+                              name={selectedUser?.full_name || 'User'} 
+                              size="small" 
+                              avatarUrl={selectedUser?.avatar_url}
+                              isCurrentUser={false}
+                            />
+                          )}
+                          <div className={`flex flex-col ${isMyMessage ? 'items-end' : 'items-start'}`}>
+                            <div
+                              className={`px-3 py-2 rounded-lg ${
+                                isMyMessage
+                                  ? 'bg-[#5C67F2] text-white rounded-br-md'
+                                  : 'bg-[#2E3343] text-white rounded-bl-md'
+                              }`}
+                            >
+                              <p className="text-sm leading-relaxed">{message.content}</p>
+                            </div>
+                            <div className={`text-xs mt-1 ${isMyMessage ? 'text-right' : 'text-left'} ${isMyMessage ? 'text-purple-300' : 'text-slate-400'} px-1`}>
+                              {formatTime(message.created_at)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Message Input */}
-            <footer className="p-4 border-t border-slate-700 bg-slate-800/50">
-              <div className="flex items-center gap-3 bg-slate-700 border border-slate-600 rounded-full p-2">
-                <div className="flex items-center gap-1">
-                  <button className="p-2 rounded-full hover:bg-slate-600 text-slate-400"><Paperclip className="w-4 h-4" /></button>
-                  <button className="p-2 rounded-full hover:bg-slate-600 text-slate-400"><Image className="w-4 h-4" /></button>
-                </div>
-                <input 
-                  type="text" 
-                  placeholder="Type a message..." 
-                  value={inputVal} 
-                  onChange={(e) => setInputVal(e.target.value)} 
-                  className="flex-1 bg-transparent border-none text-sm text-gray-200 focus:ring-0 placeholder:text-gray-400 outline-none" 
+            {/* Message Input - Clean Design */}
+            <footer className="border-t border-slate-700/30 bg-slate-800/30 backdrop-blur-md p-4">
+              <div className="flex items-center gap-3 bg-slate-900/50 border border-slate-600/50 rounded-full px-4 py-3 backdrop-blur-sm">
+                <button className="p-1.5 rounded-full hover:bg-slate-700/50 text-slate-400 transition-colors">
+                  <Paperclip className="w-4 h-4" />
+                </button>
+                <input
+                  type="text"
+                  placeholder="Your message here..."
+                  value={inputVal}
+                  onChange={(e) => setInputVal(e.target.value)}
+                  className="flex-1 bg-transparent border-none text-sm text-white focus:ring-0 placeholder:text-slate-400 outline-none"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      sendMessage();
+                    }
+                  }}
                 />
-                <button 
-                  onClick={() => {}} 
-                  disabled={!inputVal.trim()} 
-                  className="p-3 rounded-full bg-gradient-to-r from-purple-600 to-violet-600 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-all"
+                <button className="p-1.5 rounded-full hover:bg-slate-700/50 text-slate-400 transition-colors">
+                  <Smile className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded-full hover:bg-slate-700/50 text-slate-400 transition-colors">
+                  <Mic className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={sendMessage}
+                  disabled={!inputVal.trim()}
+                  className="p-2 rounded-full bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -316,18 +719,25 @@ export default function Chat() {
             </footer>
           </>
         ) : (
-          /* Empty State - No user selected */
-          <div className="flex-1 flex items-center justify-center bg-slate-950/30">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+          /* Empty State */
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mb-8 border border-purple-500/30">
                 <MessageCircle className="w-12 h-12 text-purple-400" />
               </div>
-              <h3 className="text-3xl font-semibold text-gray-200 mb-4">Select a user to start chatting</h3>
-              <p className="text-gray-400 text-lg max-w-2xl leading-relaxed">Choose from the user list on the left to begin your skill swap conversation</p>
-            </motion.div>
+              <h3 className="text-2xl font-semibold text-gray-200 mb-4">Select a user to start chatting</h3>
+              <p className="text-gray-400 text-lg">Choose from the user list to begin your skill swap conversation with {selectedUser?.full_name ?? 'a user'}</p>
+            </div>
           </div>
         )}
       </main>
+
+      {/* Logout Modal */}
+      <LogoutModal 
+        isOpen={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+      />
+      </div>
     </div>
   );
 }
