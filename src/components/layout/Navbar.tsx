@@ -168,7 +168,6 @@ export default function Navbar() {
     setIsLoggingOut(true);
     
     try {
-      console.log('Starting logout process...');
       
       // Call supabase signOut directly to ensure proper logout
       const { error } = await supabase.auth.signOut();
@@ -179,7 +178,6 @@ export default function Navbar() {
         return;
       }
       
-      console.log('Successfully signed out from Supabase');
       
       setLogoutModalOpen(false);
             

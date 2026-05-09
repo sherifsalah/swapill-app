@@ -1,6 +1,9 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Star, MapPin, Calendar, MessageCircle, Send, User, Award, Globe, Clock } from 'lucide-react';
+import { X, Star, MapPin, MessageCircle, Send, User, Award, Globe, Share2 } from 'lucide-react';
+import { shareOrCopy, profileShareUrl } from '../utils/share';
+import { usePresence, isOnline } from '../hooks/usePresence';
+import { getAvatarGradient } from '../utils/avatarColor';
 
 interface UserSkill {
   title: string;
@@ -38,46 +41,31 @@ interface ProfilePreviewModalProps {
   friends?: string[];
 }
 
-// Modern Avatar Component (same as Explore page)
-function ModernAvatar({ name, size = "medium", avatarUrl }: { 
-  name: string; 
-  size?: "small" | "medium" | "large"; 
-  avatarUrl?: string | null; 
+// Modern Avatar Component
+function ModernAvatar({ name, size = "medium", avatarUrl }: {
+  name: string;
+  size?: "small" | "medium" | "large";
+  avatarUrl?: string | null;
 }) {
   const safeName = name || 'Member';
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  const sizeClasses = { 
-    small: "w-16 h-16 text-xl", 
-    medium: "w-20 h-20 text-2xl", 
-    large: "w-24 h-24 text-3xl" 
+  const initials = safeName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const sizeClasses = {
+    small: "w-16 h-16 text-xl",
+    medium: "w-20 h-20 text-2xl",
+    large: "w-24 h-24 text-3xl",
   };
-  
-  const colors = [
-    'from-slate-600 to-slate-700', 
-    'from-gray-600 to-gray-700', 
-    'from-neutral-600 to-neutral-700', 
-    'from-stone-600 to-stone-700',
-    'from-zinc-600 to-zinc-700'
-  ];
-  const color = colors[safeName ? safeName.charCodeAt(0) % colors.length : 0];
+  const color = getAvatarGradient(safeName);
 
-  // BLOCK dicebear URLs and show colored initials instead
-  if (avatarUrl && avatarUrl.includes('dicebear.com')) {
-    return (
-      <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
-        {initials}
-      </div>
-    );
-  }
-  
-  // Show real photo only if it's NOT a dicebear URL
-  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
+  const isDicebear = !!avatarUrl && avatarUrl.includes('dicebear.com');
+  const showImage = !!avatarUrl && !isDicebear;
+
+  if (showImage) {
     return (
       <div className={`rounded-full overflow-hidden border border-white/20 ${sizeClasses[size]}`}>
-        <img 
-          src={avatarUrl} 
-          alt={safeName} 
-          className="w-full h-full object-cover rounded-full aspect-square" 
+        <img
+          src={avatarUrl!}
+          alt={safeName}
+          className="w-full h-full object-cover rounded-full aspect-square"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
@@ -93,8 +81,7 @@ function ModernAvatar({ name, size = "medium", avatarUrl }: {
       </div>
     );
   }
-  
-  // Otherwise show colored initials
+
   return (
     <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
       {initials}
@@ -103,14 +90,23 @@ function ModernAvatar({ name, size = "medium", avatarUrl }: {
 }
 
 export default function ProfilePreviewModal({ isOpen, onClose, user, currentUser, onRequestSwap, onEditProfile, onMessage, friends = [] }: ProfilePreviewModalProps) {
-  const [isLoading, setIsLoading] = React.useState(false);
-  
+  const [isLoading] = React.useState(false);
+  const onlineIds = usePresence(currentUser?.id);
+
   if (!user) return null;
 
-  const isOnline = user.availability === 'online';
+  const userOnline = isOnline(onlineIds, user.id);
   const isOwnProfile = currentUser && user.id === currentUser.id;
   const requestSent = user.requestSent || false;
   const isFriend = friends.includes(user.id);
+
+  const handleShare = () => {
+    shareOrCopy({
+      url: profileShareUrl(user.id),
+      title: `${user.name} on Swapill`,
+      text: `Check out ${user.name}'s profile on Swapill`,
+    });
+  };
 
   return (
     <AnimatePresence>
@@ -132,48 +128,55 @@ export default function ProfilePreviewModal({ isOpen, onClose, user, currentUser
           >
             {/* Header */}
             <div className="relative bg-gradient-to-r from-purple-600/20 to-violet-600/20 p-6 border-b border-[#334155]">
-              <button
-                onClick={onClose}
-                className="absolute top-4 right-4 p-2 rounded-lg bg-[#0f172a]/50 hover:bg-[#0f172a] text-gray-400 hover:text-white transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              
+              <div className="absolute top-4 right-4 flex items-center gap-2">
+                <button
+                  onClick={handleShare}
+                  title="Share profile"
+                  className="p-2 rounded-lg bg-[#0f172a]/50 hover:bg-[#0f172a] text-gray-400 hover:text-white transition-all"
+                >
+                  <Share2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={onClose}
+                  title="Close"
+                  className="p-2 rounded-lg bg-[#0f172a]/50 hover:bg-[#0f172a] text-gray-400 hover:text-white transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
               <div className="flex items-center gap-6">
                 {/* Profile Image */}
-                <div className="relative">
-                  <ModernAvatar 
-                    name={user.name} 
-                    size="large" 
+                <div className="relative inline-block">
+                  <ModernAvatar
+                    name={user.name}
+                    size="large"
                     avatarUrl={user.avatar_url}
                   />
-                  
-                  {/* Online Status */}
-                  <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-3 border-[#1e293b] ${
-                    isOnline ? 'bg-green-500' : 'bg-gray-500'
-                  }`} />
+                  <div
+                    className={`absolute bottom-1 right-1 w-5 h-5 rounded-full border-[3px] border-[#1e293b] ${userOnline ? 'bg-green-500' : 'bg-slate-500'}`}
+                    title={userOnline ? 'Online' : 'Offline'}
+                  />
                 </div>
 
                 {/* Basic Info */}
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-white mb-1">{user.name}</h2>
-                  
-                  <div className="flex items-center gap-4 text-sm">
-                    {/* Rating */}
-                    <div className="flex items-center gap-1 text-yellow-400">
-                      <Star className="w-4 h-4 fill-current" />
-                      <span className="text-white font-medium">{user.rating || '4.5'}</span>
-                      <span className="text-gray-400">({user.swaps || '12'} swaps)</span>
-                    </div>
-                    
-                    {/* Availability */}
-                    <div className={`flex items-center gap-1 ${
-                      isOnline ? 'text-green-400' : 'text-gray-400'
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        isOnline ? 'bg-green-400' : 'bg-gray-400'
-                      }`} />
-                      <span className="text-sm">{isOnline ? 'Online' : 'Offline'}</span>
+
+                  <div className="flex items-center gap-4 text-sm flex-wrap">
+                    {(user.rating ?? 0) > 0 && (
+                      <div className="flex items-center gap-1 text-yellow-400">
+                        <Star className="w-4 h-4 fill-current" />
+                        <span className="text-white font-medium">{user.rating!.toFixed(1)}</span>
+                        {(user.swaps ?? 0) > 0 && (
+                          <span className="text-gray-400">({user.swaps} swaps)</span>
+                        )}
+                      </div>
+                    )}
+
+                    <div className={`flex items-center gap-1 ${userOnline ? 'text-green-400' : 'text-gray-400'}`}>
+                      <div className={`w-2 h-2 rounded-full ${userOnline ? 'bg-green-400' : 'bg-gray-400'}`} />
+                      <span className="text-sm">{userOnline ? 'Online' : 'Offline'}</span>
                     </div>
                   </div>
                 </div>
@@ -232,25 +235,35 @@ export default function ProfilePreviewModal({ isOpen, onClose, user, currentUser
                     </div>
                   )}
 
-                  {/* Languages */}
-                  {user.skills && user.skills.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                        <Globe className="w-5 h-5 text-purple-400" />
-                        Languages
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {user.skills.slice(0, 4).map((skill, index) => (
-                          <span
-                            key={index}
-                            className="px-3 py-1 bg-[#334155] rounded-lg text-gray-300 text-sm"
-                          >
-                            {skill.category || 'General'}
-                          </span>
-                        ))}
+                  {/* Skill categories */}
+                  {(() => {
+                    const categories = Array.from(
+                      new Set(
+                        (user.skills || [])
+                          .map(s => s.category)
+                          .filter((c): c is string => Boolean(c)),
+                      ),
+                    );
+                    if (categories.length === 0) return null;
+                    return (
+                      <div>
+                        <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                          <Globe className="w-5 h-5 text-purple-400" />
+                          Categories
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {categories.map((category, index) => (
+                            <span
+                              key={index}
+                              className="px-3 py-1 bg-[#334155] rounded-lg text-gray-300 text-sm capitalize"
+                            >
+                              {category}
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Right Column - Stats & Actions */}
@@ -261,15 +274,17 @@ export default function ProfilePreviewModal({ isOpen, onClose, user, currentUser
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Total Swaps</span>
-                        <span className="text-white font-medium">{user.swaps || '12'}</span>
+                        <span className="text-white font-medium">{user.swaps ?? 0}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Rating</span>
-                        <div className="flex items-center gap-1">
-                          <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                          <span className="text-white font-medium">{user.rating || '4.5'}</span>
+                      {(user.rating ?? 0) > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-400">Rating</span>
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                            <span className="text-white font-medium">{user.rating!.toFixed(1)}</span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                       {user.joined_date && (
                         <div className="flex justify-between items-center">
                           <span className="text-gray-400">Joined</span>
@@ -333,8 +348,8 @@ export default function ProfilePreviewModal({ isOpen, onClose, user, currentUser
                       onClick={onClose}
                       className="w-full py-3 bg-[#334155] hover:bg-[#475569] text-white font-medium rounded-xl transition-all duration-300 flex items-center justify-center gap-2"
                     >
-                      <MessageCircle className="w-5 h-5" />
-                      Close Profile
+                      <X className="w-5 h-5" />
+                      Close
                     </button>
                   </div>
                 </div>

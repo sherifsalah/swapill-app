@@ -1,5 +1,8 @@
 # 🔐 Supabase Authentication Setup Guide
 
+> **⚠️ Partially superseded.** For database setup use the canonical schema in [`supabase/init.sql`](./supabase/init.sql) — see the [Database Setup](./README.md#database-setup--إعداد-قاعدة-البيانات) and [Deployment](./README.md#deployment--النشر) sections of the README. This file is still useful as a step-by-step for the OAuth provider configuration only.
+
+
 ## 📋 Environment Variables Setup
 
 **IMPORTANT**: Add these to your `.env` file:

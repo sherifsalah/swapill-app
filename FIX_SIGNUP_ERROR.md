@@ -1,5 +1,7 @@
 # 🔧 Fix Database Error for New User Signup
 
+> **⚠️ Resolved.** This was caused by the conflicting `supabase/migrations/*.sql` files. The fix is to use [`supabase/init.sql`](./supabase/init.sql) instead, which includes a working `handle_new_user` trigger that auto-creates a `profiles` row on signup. See [README → Database Setup](./README.md#database-setup--إعداد-قاعدة-البيانات). This file is kept for historical context only.
+
 ## 🚨 Problem
 Users getting "Database error saving new user" when trying to sign up for new accounts.
 

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Search, Code, Smartphone, Palette, TrendingUp, Globe, PenTool, Music, ChefHat, Sparkles, Camera, Mic, Kanban, User, MessageCircle, Clock, Check, Megaphone, Code2, BarChart3, Languages, Lightbulb } from "lucide-react";
+import { Search, Code, Smartphone, Palette, TrendingUp, Globe, PenTool, Music, ChefHat, Sparkles, Camera, Mic, Kanban, User, MessageCircle, Clock, Megaphone, Code2, BarChart3, Languages, Lightbulb, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { USERS, SKILLS } from "../data/mockData";
 import toast from 'react-hot-toast';
 import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useUserProfile } from '../contexts/UserProfileContext.tsx';
 import ProfilePreviewModal from '../components/ProfilePreviewModal';
+import { usePresence, isOnline } from '../hooks/usePresence';
+import { shareOrCopy, profileShareUrl } from '../utils/share';
+import { getAvatarGradient } from '../utils/avatarColor';
 
 // Icon mapping function for skill categories
 const getSkillIcon = (category?: string) => {
@@ -47,7 +49,6 @@ const useRealtimeProfiles = (onNewProfile: (profile: any) => void) => {
     const channel = supabase
       .channel('public:profiles')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'profiles' }, (payload) => {
-        console.log('New profile detected in realtime:', payload.new);
         onNewProfile(payload.new);
       })
       .subscribe();
@@ -92,51 +93,32 @@ const getInitials = (name: string) => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 };
 
-// Modern Avatar Component - Same as Chat page
-function ModernAvatar({ name, size = "medium", avatarUrl }: { 
-  name: string; 
-  size?: "small" | "medium" | "large"; 
-  avatarUrl?: string | null; 
+// Modern Avatar Component - shares getAvatarGradient with the rest of the app
+function ModernAvatar({ name, size = "medium", avatarUrl }: {
+  name: string;
+  size?: "small" | "medium" | "large";
+  avatarUrl?: string | null;
 }) {
-  // Use safe fallback utilities
   const safeName = name || 'Member';
   const initials = getInitials(safeName);
-  const sizeClasses = { 
-    small: "w-12 h-12 text-sm", 
-    medium: "w-14 h-14 text-base", 
-    large: "w-16 h-16 text-lg" 
+  const sizeClasses = {
+    small: "w-12 h-12 text-sm",
+    medium: "w-14 h-14 text-base",
+    large: "w-16 h-16 text-lg",
   };
-  
-  // Professional, calm color palette for initials
-  const colors = [
-    'from-slate-600 to-slate-700', 
-    'from-gray-600 to-gray-700', 
-    'from-neutral-600 to-neutral-700', 
-    'from-stone-600 to-stone-700',
-    'from-zinc-600 to-zinc-700'
-  ];
-  const color = colors[safeName ? safeName.charCodeAt(0) % colors.length : 0];
-  
-  // BLOCK dicebear URLs and show colored initials instead
-  if (avatarUrl && avatarUrl.includes('dicebear.com')) {
-    // Force display colored initials for dicebear URLs
-    return (
-      <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
-        {initials}
-      </div>
-    );
-  }
-  
-  // Show real photo only if it's NOT a dicebear URL
-  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
+  const color = getAvatarGradient(safeName);
+
+  const isDicebear = !!avatarUrl && avatarUrl.includes('dicebear.com');
+  const showImage = !!avatarUrl && !isDicebear;
+
+  if (showImage) {
     return (
       <div className={`rounded-full overflow-hidden border border-white/20 ${sizeClasses[size]}`}>
-        <img 
-          src={avatarUrl} 
-          alt={safeName} 
-          className="w-full h-full object-cover rounded-full aspect-square" 
+        <img
+          src={avatarUrl!}
+          alt={safeName}
+          className="w-full h-full object-cover rounded-full aspect-square"
           onError={(e) => {
-            // Fallback to initials if image fails to load
             const target = e.target as HTMLImageElement;
             target.style.display = 'none';
             const parent = target.parentElement;
@@ -151,8 +133,7 @@ function ModernAvatar({ name, size = "medium", avatarUrl }: {
       </div>
     );
   }
-  
-  // Otherwise show colored initials
+
   return (
     <div className={`rounded-full bg-gradient-to-br ${color} flex items-center justify-center text-white font-semibold border border-white/20 ${sizeClasses[size]}`}>
       {initials}
@@ -483,39 +464,37 @@ const EGYPTIAN_EXPERTS = [
   }
 ];
 
-// Skeleton component for loading state
+// Skeleton component for loading state — matches the real card visually
 const SkeletonCard = () => (
-  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 animate-pulse">
-    <div className="flex items-center space-x-4">
-      <div className="w-16 h-16 bg-gray-200 rounded-full"></div>
-      <div className="flex-1">
-        <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+  <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-6 border border-white/10 animate-pulse flex flex-col h-full">
+    <div className="flex items-start gap-4 mb-4">
+      <div className="w-14 h-14 bg-slate-700/50 rounded-full" />
+      <div className="flex-1 space-y-2">
+        <div className="h-4 bg-slate-700/50 rounded w-3/4" />
+        <div className="h-3 bg-slate-700/50 rounded w-1/2" />
       </div>
     </div>
-    <div className="mt-4">
-      <div className="h-3 bg-gray-200 rounded w-full mb-2"></div>
-      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+    <div className="space-y-2 mb-4">
+      <div className="h-3 bg-slate-700/50 rounded w-full" />
+      <div className="h-3 bg-slate-700/50 rounded w-5/6" />
     </div>
-    <div className="mt-4 flex justify-between items-center">
-      <div className="flex space-x-1">
-        <div className="h-6 bg-gray-200 rounded w-12"></div>
-        <div className="h-6 bg-gray-200 rounded w-12"></div>
-      </div>
-      <div className="h-8 bg-gray-200 rounded w-20"></div>
+    <div className="flex gap-2 mb-4">
+      <div className="h-6 bg-slate-700/50 rounded-full w-16" />
+      <div className="h-6 bg-slate-700/50 rounded-full w-20" />
     </div>
+    <div className="mt-auto h-11 bg-slate-700/50 rounded-xl" />
   </div>
 );
 
 export default function Explore() {
   const { user: currentUser } = useAuth();
-  const { currentUser: userProfile, friends } = useUserProfile();
+  const { friends } = useUserProfile();
   const navigate = useNavigate();
+  const onlineIds = usePresence(currentUser?.id);
   const [relationshipStatus, setRelationshipStatus] = useState<Map<string, 'accepted' | 'pending_sent' | 'pending_received' | 'none'>>(new Map());
 
   // Realtime updates for instant new user appearance
   useRealtimeProfiles((newProfile) => {
-    console.log('New profile in Explore:', newProfile);
     // Always add new profile to the list for instant appearance
     if (newProfile && newProfile.id) {
       setRealUsers(prevUsers => {
@@ -576,24 +555,28 @@ export default function Explore() {
     }
   };
 
-  // Helper function to fetch relationship status
+  // Helper function to fetch relationship status between current user and target
   const fetchRelationshipStatus = async (userId: string) => {
     if (!currentUser?.id) return 'none';
-    
+
     try {
       const { data, error } = await supabase
         .from('swap_requests')
         .select('sender_id, receiver_id, status')
-        .or(`(sender_id.eq.${currentUser.id},receiver_id.eq.${userId}),(sender_id.eq.${userId},receiver_id.eq.${currentUser.id})`)
+        .or(
+          `and(sender_id.eq.${currentUser.id},receiver_id.eq.${userId}),` +
+          `and(sender_id.eq.${userId},receiver_id.eq.${currentUser.id})`,
+        )
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error || !data) return 'none';
-      
+
       if (data.status === 'accepted') return 'accepted';
       if (data.status === 'pending') {
         return data.sender_id === currentUser.id ? 'pending_sent' : 'pending_received';
       }
-      
       return 'none';
     } catch (error) {
       console.error('Error fetching relationship status:', error);
@@ -604,58 +587,33 @@ export default function Explore() {
   // Fetch real users from Supabase
   useEffect(() => {
     const fetchRealUsers = async () => {
-      // Allow fetching for both logged in and guest users
-      console.log('=== FETCH DEBUG ===');
-      console.log('Current User ID:', currentUser?.id || 'Guest');
-      console.log('Current User:', currentUser || 'Guest user');
-    
     setIsLoading(true);
-    
+
     try {
-      // Fetch profiles with skills
-      console.log('=== EXPLORE PAGE DEBUG ===');
-      console.log('Fetching profiles with skills...');
-      
       const { data, error } = await supabase
         .from('profiles')
         .select('full_name, bio, avatar_url, id, rating, total_swaps, skills!skills_user_id_fkey(title, category)');
 
-      console.log('Fetched Profiles:', data);
-      
       if (error) {
         console.error('Error fetching profiles:', error);
-        console.dir(error); // Full error object for debugging
-        // Silent error handling - no toast.error on initial load
         setRealUsers([]);
         setIsLoading(false);
         return;
       }
-        const validProfiles = data.filter(profile => 
-          profile.full_name && 
-          profile.full_name !== 'Unknown User' && 
+        const validProfiles = data.filter(profile =>
+          profile.full_name &&
+          profile.full_name !== 'Unknown User' &&
           profile.full_name.trim() !== '' &&
-          profile.id
+          profile.id,
         );
-
-        console.log(`Valid profiles after filtering: ${validProfiles.length}`);
 
         // Transform profiles to match the expected user structure with skills and fetch relationship status
         const transformedUsers = await Promise.all(validProfiles.map(async (profile) => {
-          // Safe access to skills with optional chaining
           const userSkills = profile.skills || [];
           const firstSkill = userSkills?.[0];
-          
-          // Fetch relationship status for this user (only if logged in)
+
           const status = currentUser?.id ? await fetchRelationshipStatus(profile.id) : 'none';
-          
-          console.log(`Transforming profile:`, {
-            full_name: profile.full_name,
-            id: profile.id,
-            skills_count: userSkills.length,
-            first_skill: firstSkill?.title || 'No skills',
-            relationship_status: status
-          });
-          
+
           return {
             id: profile.id,
             name: profile.full_name || 'Expert Member',
@@ -675,8 +633,6 @@ export default function Explore() {
             relationshipStatus: status
           };
         }));
-
-        console.log('Transformed users:', transformedUsers);
 
         // Update relationship status map
         const statusMap = new Map<string, 'accepted' | 'pending_sent' | 'pending_received' | 'none'>();
@@ -708,39 +664,28 @@ export default function Explore() {
   const filteredProfiles = useMemo(() => {
     let filtered = realUsers;
 
-    console.log('=== FILTER DEBUG ===');
-    console.log('Active Category:', activeCategory);
-    console.log('Real Users Count:', realUsers.length);
-    console.log('Current User ID:', currentUser?.id || 'Guest');
-
-    // Exclude current user from Explore page (only if logged in)
     if (currentUser?.id) {
       filtered = filtered.filter(user => user.id !== currentUser.id);
-      console.log('Filtered Users Count after excluding current user:', filtered.length);
     }
 
     if (activeCategory !== 'all') {
+      const activeCat = activeCategory.toLowerCase();
       filtered = filtered.filter(user => {
-        const hasMatchingSkill = user.skills && user.skills.some(skill => {
-          const skillCategory = skill.category?.toLowerCase();
-          const activeCat = activeCategory.toLowerCase();
-          console.log(`Checking skill: ${skill.title}, category: ${skillCategory} vs ${activeCat}`);
-          return skillCategory === activeCat;
-        });
-        return hasMatchingSkill;
+        return !!user.skills && user.skills.some(
+          (skill: any) => skill.category?.toLowerCase() === activeCat,
+        );
       });
-      console.log('Filtered Users Count after category filter:', filtered.length);
     }
 
     if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
       filtered = filtered.filter(user =>
-        (user.name?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
-        (user.bio?.toLowerCase().includes(searchQuery.toLowerCase()) || false) ||
-        (user.skills?.some(skill => skill.title?.toLowerCase().includes(searchQuery.toLowerCase())) || false)
+        (user.name?.toLowerCase().includes(q) || false) ||
+        (user.bio?.toLowerCase().includes(q) || false) ||
+        (user.skills?.some((skill: any) => skill.title?.toLowerCase().includes(q)) || false),
       );
     }
 
-    console.log('Final Filtered Users Count:', filtered.length);
     return filtered;
   }, [realUsers, activeCategory, searchQuery]);
 
@@ -770,14 +715,17 @@ export default function Explore() {
     }
 
     try {
-      // Check if conversation already exists
+      // Check if conversation already exists between the two users
       const { data: existingConversation, error: checkError } = await supabase
         .from('conversations')
-        .select('*')
-        .or(`and(participant_one.eq.${currentUser.id},participant_two.eq.${userId}),and(participant_one.eq.${userId},participant_two.eq.${currentUser.id})`)
-        .single();
+        .select('id')
+        .or(
+          `and(participant_one.eq.${currentUser.id},participant_two.eq.${userId}),` +
+          `and(participant_one.eq.${userId},participant_two.eq.${currentUser.id})`,
+        )
+        .maybeSingle();
 
-      if (checkError && checkError.code !== 'PGRST116') {
+      if (checkError) {
         console.error('Error checking conversation:', checkError);
         toast.error('Failed to check conversation');
         return;
@@ -829,44 +777,45 @@ export default function Explore() {
     }
 
     try {
-      // Check for existing pending request
+      // Check for existing pending request (either direction)
       const { data: existingRequest, error: checkError } = await supabase
         .from('swap_requests')
-        .select('*')
-        .eq('sender_id', currentUser.id)
-        .eq('receiver_id', user.id)
+        .select('id, sender_id, receiver_id')
+        .or(
+          `and(sender_id.eq.${currentUser.id},receiver_id.eq.${user.id}),` +
+          `and(sender_id.eq.${user.id},receiver_id.eq.${currentUser.id})`,
+        )
         .eq('status', 'pending')
-        .single();
+        .maybeSingle();
 
-      // Handle case where table doesn't exist yet
       if (checkError) {
-        if (checkError.code === 'PGRST116') {
-          // No existing request found, proceed to create new one
-        } else if (checkError.message?.includes('relation') && checkError.message?.includes('does not exist')) {
+        if (checkError.message?.includes('relation') && checkError.message?.includes('does not exist')) {
           toast.error('Swap requests table not available. Please contact administrator.');
           return;
-        } else {
-          console.error('Error checking existing requests:', checkError);
-          toast.error('Error checking swap requests');
-          return;
         }
+        console.error('Error checking existing requests:', checkError);
+        toast.error('Error checking swap requests');
+        return;
       }
 
       if (existingRequest) {
-        toast.error('You already have a pending swap request with this user');
+        if (existingRequest.sender_id === currentUser.id) {
+          toast.error('You already have a pending request to this user');
+        } else {
+          toast('They already sent you a request — review it in Requests');
+          navigate('/requests');
+        }
         return;
       }
 
       // Create new swap request
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('swap_requests')
         .insert({
           sender_id: currentUser.id,
           receiver_id: user.id,
-          status: 'pending'
-        })
-        .select()
-        .single();
+          status: 'pending',
+        });
 
       if (error) {
         if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
@@ -878,13 +827,19 @@ export default function Explore() {
         return;
       }
 
-      toast.success('Swap request sent successfully!');
-      
-      // Update the modal state to show "Request Sent"
+      toast.success('Swap request sent');
+
+      // Update the card behind the modal so it flips to "Request Sent" without a refresh
+      setRelationshipStatus(prev => {
+        const next = new Map(prev);
+        next.set(user.id, 'pending_sent');
+        return next;
+      });
+
+      // Mark the modal's CTA as sent
       if (selectedUser?.id === user.id) {
         setSelectedUser(prev => prev ? { ...prev, requestSent: true } : null);
       }
-
     } catch (error) {
       console.error('Unexpected error:', error);
       toast.error('An unexpected error occurred');
@@ -893,14 +848,14 @@ export default function Explore() {
 
   
   return (
-    <div className="w-full max-w-7xl mx-auto px-6 py-8">
+    <div className="w-full max-w-7xl mx-auto px-4 md:px-6 py-6">
       {/* Hero Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-violet-600 bg-clip-text text-transparent">
+      <div className="text-center mb-8">
+        <h1 className="text-3xl md:text-4xl font-bold mb-3 bg-gradient-to-r from-purple-400 to-violet-600 bg-clip-text text-transparent">
           Discover your next skill swap
         </h1>
-        <p className="text-slate-400 text-lg mb-8 max-w-2xl mx-auto">
-          Connect with talented individuals and exchange expertise in a premium marketplace for skills
+        <p className="text-slate-400 text-sm md:text-base mb-6 max-w-xl mx-auto">
+          Connect with talented people and exchange expertise — no money needed
         </p>
         
         {/* Glassmorphism Search Bar with Refresh */}
@@ -980,20 +935,43 @@ export default function Explore() {
                 >
                   {/* Header with Avatar */}
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="relative">
-                      {/* Use standardized ModernAvatar component */}
-                      <ModernAvatar 
-                        name={user.name || 'Expert Member'} 
-                        size="medium" 
-                        avatarUrl={user.avatar_url} 
+                    <div className="relative inline-block">
+                      <ModernAvatar
+                        name={user.name || 'Expert Member'}
+                        size="medium"
+                        avatarUrl={user.avatar_url}
                       />
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 rounded-full border-2 border-slate-950" />
+                      {(() => {
+                        const online = isOnline(onlineIds, user.id);
+                        return (
+                          <div
+                            className={`absolute bottom-0.5 right-0.5 w-4 h-4 rounded-full border-2 border-slate-950 ${online ? 'bg-green-500' : 'bg-slate-500'}`}
+                            title={online ? 'Online' : 'Offline'}
+                          />
+                        );
+                      })()}
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Expert Member'}</h3>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-lg font-semibold text-white mb-1">{user.name || 'Expert Member'}</h3>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            shareOrCopy({
+                              url: profileShareUrl(user.id),
+                              title: `${user.name} on Swapill`,
+                              text: `Check out ${user.name}'s profile on Swapill`,
+                            });
+                          }}
+                          title="Share profile"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all"
+                        >
+                          <Share2 className="w-4 h-4" />
+                        </button>
+                      </div>
                       <div className="flex items-center gap-1 text-sm text-slate-400">
-                        {(user.swaps || 0) > 0 && user.rating && user.rating > 0 && user.name !== 'Maryam' && user.name !== 'yousefkh123' ? (
-                          <span> ⭐ {user.rating.toFixed(1)} • {user.swaps || 0} swaps</span>
+                        {(user.swaps || 0) > 0 && user.rating && user.rating > 0 ? (
+                          <span> ⭐ {user.rating.toFixed(1)} • {user.swaps} swaps</span>
                         ) : (
                           <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">New Member</span>
                         )}
@@ -1003,7 +981,7 @@ export default function Explore() {
 
                 {/* Bio */}
                 <div className="mb-4">
-                  <p className="text-sm text-slate-300 leading-relaxed">{user.bio || 'No bio available'}</p>
+                  <p className="text-sm text-slate-300 leading-relaxed line-clamp-2">{user.bio || 'No bio available'}</p>
                 </div>
 
                 {/* Top Skill */}

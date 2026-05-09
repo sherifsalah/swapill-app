@@ -1,43 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import GlobalSidebar from './GlobalSidebar';
 import Header from './Header';
 import LogoutModal from '../shared/LogoutModal';
+import SafeAvatar from '../shared/SafeAvatar';
 import { useAuth } from '../../contexts/AuthContext';
 import { useUserProfile } from '../../contexts/UserProfileContext';
-
-// User Avatar Component for Mobile Header
-function UserAvatar({ avatarUrl, name }: { avatarUrl?: string; name: string }) {
-  const getInitials = (fullName: string) => {
-    return fullName
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
-
-  if (avatarUrl && !avatarUrl.includes('dicebear.com')) {
-    return (
-      <div className="relative">
-        <img 
-          src={avatarUrl}
-          alt={name}
-          className="w-8 h-8 rounded-full object-cover border-2 border-white/20"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-pink-500 flex items-center justify-center border-2 border-white/20">
-      <span className="text-white font-bold text-xs">
-        {getInitials(name)}
-      </span>
-    </div>
-  );
-}
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -103,9 +72,10 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
         <div className="flex items-center gap-3">
           {user && (
             <Link to="/profile" className="flex items-center gap-2 group">
-              <UserAvatar 
-                avatarUrl={userProfile?.avatar_url}
+              <SafeAvatar
+                src={userProfile?.avatar_url}
                 name={userProfile?.name || user.email?.split('@')[0] || 'User'}
+                size={32}
               />
             </Link>
           )}
@@ -128,11 +98,12 @@ export default function MainLayout({ children, conversationsCount }: MainLayoutP
           <Header />
         </header>
         
-        {/* Page Content */}
-        <main className={`flex-1 overflow-y-auto w-full relative z-0 ${
-          isChatPage 
-            ? 'p-0' 
-            : 'p-4'
+        {/* Page Content. Chat manages its own scroll regions internally so we
+            disable the page-level scroll there and pin the chat header. */}
+        <main className={`flex-1 w-full relative z-0 min-h-0 ${
+          isChatPage
+            ? 'p-0 overflow-hidden'
+            : 'p-4 overflow-y-auto'
         }`}>
           {children}
         </main>

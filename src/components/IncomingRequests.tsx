@@ -62,22 +62,71 @@ export default function IncomingRequests({ isOpen, onClose }: IncomingRequestsPr
     }
   };
 
-  // Accept request
+  // Accept request: create conversation + welcome message, then mark accepted
   const handleAccept = async (requestId: string) => {
     try {
-      const { error } = await supabase
+      const request = requests.find(r => r.id === requestId);
+      if (!request) {
+        toast.error('Request not found');
+        return;
+      }
+      const { sender_id, receiver_id } = request;
+
+      // Look up an existing conversation between the two users
+      const { data: existing, error: lookupError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(
+          `and(participant_one.eq.${sender_id},participant_two.eq.${receiver_id}),` +
+          `and(participant_one.eq.${receiver_id},participant_two.eq.${sender_id})`,
+        )
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error('Error looking up conversation:', lookupError);
+        toast.error('Failed to accept request');
+        return;
+      }
+
+      let conversationId = existing?.id;
+
+      if (!conversationId) {
+        const { data: created, error: createError } = await supabase
+          .from('conversations')
+          .insert({ participant_one: sender_id, participant_two: receiver_id })
+          .select('id')
+          .single();
+
+        if (createError || !created) {
+          console.error('Error creating conversation:', createError);
+          toast.error('Failed to accept request');
+          return;
+        }
+        conversationId = created.id;
+      }
+
+      // Welcome message from the original sender
+      await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id,
+          content: "Hi! Excited to start swapping skills with you 👋",
+        });
+
+      const { error: statusError } = await supabase
         .from('swap_requests')
         .update({ status: 'accepted' })
         .eq('id', requestId);
 
-      if (error) {
-        console.error('Error accepting request:', error);
+      if (statusError) {
+        console.error('Error updating request status:', statusError);
         toast.error('Failed to accept request');
-      } else {
-        toast.success('Request accepted!');
-        // Remove from list
-        setRequests(prev => prev.filter(req => req.id !== requestId));
+        return;
       }
+
+      toast.success('Request accepted! Say hi in chat.');
+      setRequests(prev => prev.filter(req => req.id !== requestId));
     } catch (error) {
       console.error('Error in handleAccept:', error);
       toast.error('Failed to accept request');
@@ -180,17 +229,17 @@ export default function IncomingRequests({ isOpen, onClose }: IncomingRequestsPr
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleAccept(request.id)}
-                      className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
+                      className="flex-1 px-3 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white rounded-lg transition-all flex items-center justify-center gap-1 text-sm font-medium shadow-lg shadow-green-500/20"
                     >
                       <Check className="w-4 h-4" />
                       Accept
                     </button>
                     <button
                       onClick={() => handleReject(request.id)}
-                      className="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-sm"
+                      className="flex-1 px-3 py-2 bg-slate-700/60 hover:bg-slate-700 text-white rounded-lg transition-colors flex items-center justify-center gap-1 text-sm font-medium border border-white/10"
                     >
                       <X className="w-4 h-4" />
-                      Reject
+                      Decline
                     </button>
                   </div>
                 </motion.div>

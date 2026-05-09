@@ -212,7 +212,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
         return;
       }
       
-      console.log('Initiating Google login...');
       toast.success('Redirecting to Google...');
       
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -228,7 +227,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
         return;
       }
       
-      console.log('Google login initiated successfully');
       
     } catch (error) {
       console.error('Google login error:', error);
@@ -243,7 +241,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
         return;
       }
       
-      console.log('Initiating GitHub login...');
       toast.success('Redirecting to GitHub...');
       
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -259,7 +256,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
         return;
       }
       
-      console.log('GitHub login initiated successfully');
       
     } catch (error) {
       console.error('GitHub login error:', error);
@@ -281,7 +277,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
     setIsLoading(true);
     
     try {
-      console.log('Attempting signup with:', formData.email);
       
       if (!supabase) {
         toast.error('Supabase not configured. Please add environment variables.');
@@ -314,7 +309,6 @@ export default function AuthModal({ isOpen, onClose, mode, onModeChange, onAuthS
         error = result.error;
       }
       
-      console.log('Result:', data, error);
       
       if (error) {
         console.error('Auth error:', error);

@@ -18,7 +18,6 @@ export default function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
     setIsLoggingOut(true);
     
     try {
-      console.log('Starting logout process...');
       
       // Call supabase signOut directly to ensure proper logout
       const { error } = await supabase.auth.signOut();
@@ -29,7 +28,6 @@ export default function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         return;
       }
       
-      console.log('Successfully signed out from Supabase');
       
       // Clear any localStorage data
       localStorage.removeItem('swapill_user');

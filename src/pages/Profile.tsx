@@ -14,9 +14,15 @@ import { useAuth } from '../contexts/AuthContext';
 
 import { useUserProfile } from '../contexts/UserProfileContext.tsx';
 
+import { getAvatarGradient, getInitials as getSharedInitials } from '../utils/avatarColor';
+
+import { shareOrCopy, profileShareUrl } from '../utils/share';
+
 
 
 interface UserProfile {
+
+  id: string;
 
   name: string;
 
@@ -28,7 +34,7 @@ interface UserProfile {
 
   joinDate: string;
 
-  avatar_url?: string;
+  avatar_url?: string | null;
 
   skills: any[];
 
@@ -124,6 +130,14 @@ export default function Profile() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+
+  const coverMenuRef = useRef<HTMLDivElement>(null);
+
+  const [coverLoading, setCoverLoading] = useState(false);
+
+  const [showCoverMenu, setShowCoverMenu] = useState(false);
+
   const [targetProfile, setTargetProfile] = useState<any>(null);
 
   const [isFetching, setIsFetching] = useState(false);
@@ -136,49 +150,12 @@ export default function Profile() {
 
 
 
-  // Color palette for avatar circles
+  // Avatar color + initials use shared utils so the same person gets the
+  // same color across Header, Chat, Explore, Modal and Profile.
 
-  const AVATAR_COLORS = [
+  const getAvatarColor = getAvatarGradient;
 
-    'from-purple-500 to-violet-600',
-
-    'from-red-500 to-rose-600',
-
-    'from-green-500 to-emerald-600',
-
-    'from-blue-500 to-indigo-600',
-
-    'from-yellow-500 to-amber-600',
-
-    'from-pink-500 to-rose-600',
-
-    'from-teal-500 to-cyan-600',
-
-    'from-orange-500 to-orange-600'
-
-  ];
-
-
-
-  // Get color based on user name
-
-  const getAvatarColor = (userName: string) => {
-
-    const hash = userName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-
-    return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-
-  };
-
-
-
-  // Get initials from name
-
-  const getInitials = (name: string) => {
-
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-
-  };
+  const getInitials = getSharedInitials;
 
 
 
@@ -196,7 +173,6 @@ export default function Profile() {
 
       await refreshProfile();
 
-      console.log('Profile refresh completed successfully');
 
     } catch (error) {
 
@@ -216,23 +192,17 @@ export default function Profile() {
 
   useEffect(() => {
 
+    let pendingRefresh: ReturnType<typeof setTimeout> | null = null;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
 
       async (event, session) => {
 
-        console.log('Profile component - Auth state changed:', event, session?.user?.email || 'No user');
-
-        
-
         if (event === 'SIGNED_IN' && session?.user) {
 
-          console.log('User signed in - creating instant profile from session');
-
-          
-
-          // Instant UI - create profile from session metadata immediately
-
           const instantProfile = {
+
+            id: session.user.id,
 
             name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
 
@@ -252,23 +222,19 @@ export default function Profile() {
 
             exchanges: 0,
 
-            trustScore: 0
+            trustScore: 0,
 
           };
-
-          
-
-          console.log('Setting instant profile from session:', instantProfile);
 
           setCurrentUser(instantProfile);
 
           setLoading(false);
 
-          
+          if (pendingRefresh) clearTimeout(pendingRefresh);
 
-          // Trigger background profile fetch to get complete data
+          pendingRefresh = setTimeout(() => {
 
-          setTimeout(() => {
+            pendingRefresh = null;
 
             refreshProfile();
 
@@ -276,21 +242,13 @@ export default function Profile() {
 
         }
 
-        
-
-        if (event === 'SIGNED_OUT') {
-
-          console.log('User signed out, clearing profile data');
-
-        }
-
       }
 
     );
 
-    
-
     return () => {
+
+      if (pendingRefresh) clearTimeout(pendingRefresh);
 
       subscription.unsubscribe();
 
@@ -300,17 +258,20 @@ export default function Profile() {
 
 
 
-  // Fetch specific profile data when profile ID is provided in URL
+  // Fetch specific profile data when profile ID is provided in URL.
+  // Uses a `cancelled` flag so that fast nav between profiles doesn't allow
+  // an earlier in-flight fetch to overwrite the newer one's result.
 
   useEffect(() => {
+
+    let cancelled = false;
 
     const fetchProfileData = async () => {
 
       if (!profileId || !user?.id) return;
 
-      
 
-      console.log('Fetching profile for ID:', profileId);
+
 
       
 
@@ -321,128 +282,44 @@ export default function Profile() {
       
 
       try {
-
-        // Universal fetch - handle any ID format (UUID, integer, string)
-
         const { data: profileWithSkills, error: fetchError } = await supabase
+          .from('profiles')
+          .select('*, skills!skills_user_id_fkey(*)')
+          .eq('id', String(profileId))
+          .maybeSingle();
 
-            .from('profiles')
+        if (cancelled) return;
 
-            .select('*, skills!skills_user_id_fkey(*)')
-
-            .eq('id', String(profileId)) // Use id column
-
-            .order('created_at', { ascending: false }) // Add ordering for fresh data
-
-            .maybeSingle(); // Use maybeSingle() instead of single() to avoid errors
-
-
-
-          console.log('=== UNIVERSAL FETCH DEBUG ===');
-
-          console.log('URL ID:', profileId);
-
-          console.log('String ID:', String(profileId));
-
-          console.log('Data found:', profileWithSkills);
-
-          console.log('Error:', fetchError);
-
-
-
-          if (fetchError) {
-
-            console.error('=== PROFILE FETCH ERROR ===');
-
-            console.error('Full error object:', fetchError);
-
-            console.error('Error message:', fetchError.message);
-
-            console.error('Error details:', fetchError.details);
-
-            console.error('Error code:', fetchError.code);
-
-            console.error('Error hint:', fetchError.hint);
-
-            
-
-            // Continue with null profile if not found (maybeSingle() returns null for no records)
-
-            if (fetchError.code === 'PGRST116') {
-
-              console.log('No profile found (PGRST116), treating as not found');
-
-              setTargetProfile(null);
-
-              setTargetProfileLoading(false);
-
-              return;
-
-            }
-
-            
-
-            setTargetProfileLoading(false);
-
-            return;
-
+        if (fetchError) {
+          console.error('Profile fetch error:', fetchError);
+          if (fetchError.code === 'PGRST116') {
+            setTargetProfile(null);
           }
-
-
-
-          if (!profileWithSkills) {
-
-            console.log('No profile found with ID:', profileId, '- Setting targetProfile to empty object');
-
-            setTargetProfile({ skills: [] });
-
-            setTargetProfileLoading(false);
-
-            return;
-
-          }
-
-
-
-          console.log('=== SUCCESSFULLY FETCHED TARGET PROFILE ===');
-
-          console.log('Profile data:', profileWithSkills);
-
-          console.log('Skills data:', profileWithSkills.skills);
-
-          console.log('Skills count:', profileWithSkills.skills?.length || 0);
-
-
-
-          // Set the target profile data (using local state, not UserProfileContext)
-
-          setTargetProfile(profileWithSkills);
-
-          
-
-        } catch (error) {
-
-          console.error('=== CATCH ERROR IN FETCHPROFILEDATA ===');
-
-          console.error('Unexpected error:', error);
-
-          console.error('Error type:', typeof error);
-
-          console.error('Error message:', error.message);
-
-        } finally {
-
           setTargetProfileLoading(false);
-
+          return;
         }
 
+        if (!profileWithSkills) {
+          setTargetProfile({ skills: [] });
+          setTargetProfileLoading(false);
+          return;
+        }
+
+        setTargetProfile(profileWithSkills);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Profile fetch unexpected error:', error instanceof Error ? error.message : String(error));
+      } finally {
+        if (!cancelled) setTargetProfileLoading(false);
+      }
     };
-
-
 
     fetchProfileData();
 
-  }, [profileId, user?.id]); // Re-fetch when profileId or user.id changes
+    return () => {
+      cancelled = true;
+    };
+  }, [profileId, user?.id]);
 
 
 
@@ -522,6 +399,12 @@ export default function Profile() {
 
       }
 
+      if (coverMenuRef.current && !coverMenuRef.current.contains(event.target as Node)) {
+
+        setShowCoverMenu(false);
+
+      }
+
     };
 
 
@@ -562,11 +445,8 @@ export default function Profile() {
 
     try {
 
-      console.log('=== IMAGE UPLOAD DEBUG ===');
 
-      console.log('User ID:', user.id);
 
-      console.log('File:', file.name, file.size, file.type);
 
       
 
@@ -574,11 +454,10 @@ export default function Profile() {
 
       const fileExt = file.name.split('.').pop();
 
-      const fileName = `${user.id}_${Date.now()}.${fileExt}`;
+      const fileName = `${user.id}/avatar_${Date.now()}.${fileExt}`;
 
       
 
-      console.log('Generated filename:', fileName);
 
       
 
@@ -608,7 +487,6 @@ export default function Profile() {
 
 
 
-      console.log('Upload successful:', data);
 
 
 
@@ -622,7 +500,6 @@ export default function Profile() {
 
 
 
-      console.log('Public URL:', publicUrl);
 
 
 
@@ -650,7 +527,6 @@ export default function Profile() {
 
 
 
-      console.log('Profile updated successfully');
 
 
 
@@ -686,6 +562,158 @@ export default function Profile() {
 
 
 
+  const handleCoverUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+
+    const file = event.target.files?.[0];
+
+    if (!file || !user) return;
+
+    if (!file.type.startsWith('image/')) {
+
+      toast.error('Please select an image file');
+
+      return;
+
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+
+      toast.error('Image must be smaller than 5MB');
+
+      return;
+
+    }
+
+    setCoverLoading(true);
+
+    try {
+
+      const fileExt = file.name.split('.').pop();
+
+      const fileName = `${user.id}/cover_${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+
+        .from('avatars')
+
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) {
+
+        toast.error(`Failed to upload cover: ${uploadError.message}`);
+
+        return;
+
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+
+        .from('avatars')
+
+        .getPublicUrl(fileName);
+
+      const { error: updateError } = await supabase
+
+        .from('profiles')
+
+        .update({ cover_url: publicUrl })
+
+        .eq('id', user.id);
+
+      if (updateError) {
+
+        toast.error(`Failed to update profile: ${updateError.message}`);
+
+        return;
+
+      }
+
+      updateProfile({ cover_url: publicUrl } as any);
+
+      toast.success('Cover photo updated!');
+
+      setShowCoverMenu(false);
+
+    } catch (error) {
+
+      console.error('Error in handleCoverUpload:', error);
+
+      toast.error('Failed to upload cover photo');
+
+    } finally {
+
+      setCoverLoading(false);
+
+      if (coverFileInputRef.current) coverFileInputRef.current.value = '';
+
+    }
+
+  };
+
+
+
+  const handleRemoveCover = async () => {
+
+    if (!user || !currentUser?.cover_url) return;
+
+    setCoverLoading(true);
+
+    try {
+
+      const url = currentUser.cover_url;
+
+      const marker = '/avatars/';
+
+      const idx = url.indexOf(marker);
+
+      const path = idx >= 0 ? url.slice(idx + marker.length) : null;
+
+      if (path) {
+
+        const { error: deleteError } = await supabase.storage.from('avatars').remove([path]);
+
+        if (deleteError) console.error('Storage deletion error:', deleteError);
+
+      }
+
+      const { error: updateError } = await supabase
+
+        .from('profiles')
+
+        .update({ cover_url: null })
+
+        .eq('id', user.id);
+
+      if (updateError) {
+
+        toast.error('Failed to remove cover photo');
+
+        return;
+
+      }
+
+      updateProfile({ cover_url: null } as any);
+
+      toast.success('Cover photo removed');
+
+      setShowCoverMenu(false);
+
+    } catch (error) {
+
+      console.error('Error in handleRemoveCover:', error);
+
+      toast.error('Failed to remove cover photo');
+
+    } finally {
+
+      setCoverLoading(false);
+
+    }
+
+  };
+
+
+
   const handleRemovePhoto = async () => {
 
     if (!user || !currentUser?.avatar_url) return;
@@ -698,23 +726,23 @@ export default function Profile() {
 
     try {
 
-      console.log('=== REMOVE PHOTO DEBUG ===');
-
-      console.log('User ID:', user.id);
-
-      console.log('Current avatar URL:', currentUser?.avatar_url);
 
 
 
-      // Extract filename from avatar_url to delete from storage
 
-      const urlParts = currentUser?.avatar_url?.split('/') || [];
 
-      const fileName = urlParts[urlParts.length - 1];
+      // Extract storage path from avatar_url (everything after /avatars/) to delete from storage
+
+      const url = currentUser?.avatar_url || '';
+
+      const marker = '/avatars/';
+
+      const idx = url.indexOf(marker);
+
+      const fileName = idx >= 0 ? url.slice(idx + marker.length) : '';
 
       
 
-      console.log('Filename to delete:', fileName);
 
 
 
@@ -736,7 +764,6 @@ export default function Profile() {
 
       } else {
 
-        console.log('File deleted from storage successfully');
 
       }
 
@@ -766,7 +793,6 @@ export default function Profile() {
 
 
 
-      console.log('Avatar URL removed from profile successfully');
 
 
 
@@ -812,47 +838,33 @@ export default function Profile() {
 
     try {
 
-      console.log('=== PROFILE SAVE DEBUG ===');
+      const newBio = editForm.bio?.trim() || null;
 
-      console.log('User ID:', user.id);
+      const newLocation = editForm.location?.trim() || null;
 
-      console.log('Bio to save:', editForm.bio || null);
 
-      
 
-      // Use simple update targeting the correct id
-
-      const { data, error } = await supabase
+      const { error } = await supabase
 
         .from('profiles')
 
-        .update({ 
+        .update({
 
-          bio: editForm.bio || null, // Use null instead of empty string
+          bio: newBio,
 
-          updated_at: new Date().toISOString()
+          location: newLocation,
+
+          updated_at: new Date().toISOString(),
 
         })
 
-        .eq('id', user.id)
-
-        .select();
+        .eq('id', user.id);
 
 
 
       if (error) {
 
-        console.error('=== SUPABASE PROFILE UPDATE ERROR ===');
-
-        console.error('Full error object:', error);
-
-        console.error('Error message:', error.message);
-
-        console.error('Error details:', error.details);
-
-        console.error('Error code:', error.code);
-
-        console.error('Error hint:', error.hint);
+        console.error('Profile update error:', error);
 
         toast.error(`Failed to update profile: ${error.message}`);
 
@@ -862,31 +874,25 @@ export default function Profile() {
 
 
 
-      console.log('=== PROFILE SAVE SUCCESS ===');
-
-      console.log('Profile saved successfully:', data);
-
-      
-
-      // Update local state using shared context
-
       updateProfile({
 
-        bio: editForm.bio || null
+        bio: newBio || '',
+
+        location: newLocation || '',
 
       });
 
 
 
+      setShowEditModal(false);
+
       setIsEditing(false);
 
-      toast.success('Profile updated successfully!');
+      toast.success('Profile updated');
 
     } catch (error) {
 
-      console.error('=== PROFILE SAVE CATCH ERROR ===');
-
-      console.error('Unexpected error:', error);
+      console.error('Profile save error:', error);
 
       toast.error('Failed to update profile');
 
@@ -910,11 +916,12 @@ export default function Profile() {
 
   const handleDeleteSkill = async (skillId: string) => {
 
+    if (!user?.id) return;
+
     try {
 
-      console.log('Deleting skill:', skillId);
 
-      
+
 
       const { error } = await supabase
 
@@ -1028,11 +1035,8 @@ export default function Profile() {
 
     try {
 
-      console.log('=== ADD SKILL DEBUG ===');
 
-      console.log('User ID:', user.id);
 
-      console.log('User Email:', user.email);
 
       
 
@@ -1052,9 +1056,7 @@ export default function Profile() {
 
       
 
-      console.log('Current User ID from getUser():', authUser?.id);
 
-      console.log('User ID matches:', user.id === authUser?.id);
 
       
 
@@ -1076,17 +1078,11 @@ export default function Profile() {
 
       
 
-      console.log('Skill data to insert:', skillData);
 
-      console.log('Required fields check:');
 
-      console.log('- user_id:', skillData.user_id ? '✓' : '✗');
 
-      console.log('- title:', skillData.title ? '✓' : '✗');
 
-      console.log('- description:', skillData.description ? '✓' : '✗');
 
-      console.log('- category:', skillData.category ? '✓' : '✗');
 
       
 
@@ -1136,9 +1132,7 @@ export default function Profile() {
 
 
 
-      console.log('=== SKILL SAVE SUCCESS ===');
 
-      console.log('Skill saved successfully:', insertData);
 
       
 
@@ -1262,7 +1256,6 @@ export default function Profile() {
 
         setShowOptimisticUI(true);
 
-        console.log('Showing optimistic UI after 500ms');
 
       }
 
@@ -1652,15 +1645,10 @@ export default function Profile() {
 
   const profile = getDisplayProfile();
 
-  console.log('Current Profile State:', profile);
 
-  console.log('Loading State:', loading);
 
-  console.log('Current User:', user);
 
-  console.log('Target Profile:', targetProfile);
 
-  console.log('Current User Profile:', currentUser);
 
   
 
@@ -1669,6 +1657,8 @@ export default function Profile() {
     // Fallback profile creation for missing profiles
 
     const fallbackProfile = {
+
+      id: user?.id || '',
 
       name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User',
 
@@ -1714,9 +1704,7 @@ export default function Profile() {
 
           avatar_url: fallbackProfile.avatar_url,
 
-          created_at: new Date().toISOString(),
-
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
 
         };
 
@@ -1736,7 +1724,6 @@ export default function Profile() {
 
         } else {
 
-          console.log('Created fallback profile in database');
 
           setCurrentUser(fallbackProfile);
 
@@ -1880,13 +1867,9 @@ export default function Profile() {
 
   if (process.env.NODE_ENV === 'development') {
 
-    console.log('=== PROFILE SKILLS DEBUG ===');
 
-    console.log('Profile object:', memoizedProfile);
 
-    console.log('Display skills:', displaySkills);
 
-    console.log('Skills length:', displaySkills.length);
 
   }
 
@@ -1894,7 +1877,7 @@ export default function Profile() {
 
   return (
 
-    <div className="pt-8 pb-24 max-w-7xl mx-auto px-6">
+    <div className="pt-4 pb-16 max-w-7xl mx-auto px-4 md:px-6">
 
       {/* Hidden file input for upload */}
 
@@ -1912,37 +1895,165 @@ export default function Profile() {
 
       />
 
-      
-
       {/* Header / Banner area */}
 
-      <div className="relative h-64 rounded-3xl overflow-visible mb-24">
+      <div className="relative h-56 md:h-64 rounded-3xl overflow-visible mb-6">
 
-         <div className="absolute inset-0 bg-gradient-to-r from-purple-800 via-slate-900 to-blue-900 animate-gradient-x" />
+         {(() => {
 
-         <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
+           const coverUrl = getDisplayProfile()?.cover_url;
 
-         
+           if (coverUrl) {
+
+             return (
+
+               <div
+
+                 className="absolute inset-0 rounded-3xl bg-cover bg-center"
+
+                 style={{ backgroundImage: `url(${coverUrl})` }}
+
+               />
+
+             );
+
+           }
+
+           return (
+
+             <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-purple-800 via-slate-900 to-blue-900 animate-gradient-x" />
+
+           );
+
+         })()}
+
+         <div className="absolute inset-0 rounded-3xl bg-black/40 backdrop-blur-[2px]" />
+
+
 
          {/* Glassmorphism effect on bottom edge */}
 
-         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-slate-900/50 to-transparent backdrop-blur-sm" />
+         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-slate-900/50 to-transparent backdrop-blur-sm rounded-b-3xl" />
 
-         
 
-         {/* Edit Banner Icon */}
 
-         <button className="absolute top-4 right-4 p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all z-10">
+         {/* Hidden cover file input */}
 
-            <Edit2 className="w-4 h-4 text-white" />
+         <input
 
-         </button>
+           ref={coverFileInputRef}
+
+           type="file"
+
+           accept="image/*"
+
+           onChange={handleCoverUpload}
+
+           className="hidden"
+
+         />
+
+
+
+         {/* Edit Cover menu — only for own profile */}
+
+         {isViewingOwnProfile() && (
+
+           <div ref={coverMenuRef} className="absolute top-4 right-4 z-20">
+
+             <button
+
+               onClick={() => setShowCoverMenu((s) => !s)}
+
+               disabled={coverLoading}
+
+               className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-all flex items-center gap-2 text-white disabled:opacity-50"
+
+               title="Edit cover photo"
+
+             >
+
+               {coverLoading ? (
+
+                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+
+               ) : (
+
+                 <Edit2 className="w-4 h-4" />
+
+               )}
+
+               <span className="text-xs font-medium hidden sm:inline">Edit cover</span>
+
+             </button>
+
+             <AnimatePresence>
+
+               {showCoverMenu && (
+
+                 <motion.div
+
+                   initial={{ opacity: 0, y: -8 }}
+
+                   animate={{ opacity: 1, y: 0 }}
+
+                   exit={{ opacity: 0, y: -8 }}
+
+                   className="absolute right-0 top-full mt-2 w-56 bg-slate-900 border border-white/10 rounded-xl shadow-xl overflow-hidden"
+
+                 >
+
+                   <button
+
+                     onClick={() => coverFileInputRef.current?.click()}
+
+                     disabled={coverLoading}
+
+                     className="w-full px-4 py-3 text-left text-sm text-white hover:bg-white/5 flex items-center gap-3 disabled:opacity-50"
+
+                   >
+
+                     <Upload className="w-4 h-4 text-purple-400" />
+
+                     {currentUser?.cover_url ? 'Change cover photo' : 'Upload cover photo'}
+
+                   </button>
+
+                   {currentUser?.cover_url && (
+
+                     <button
+
+                       onClick={handleRemoveCover}
+
+                       disabled={coverLoading}
+
+                       className="w-full px-4 py-3 text-left text-sm text-red-400 hover:bg-white/5 flex items-center gap-3 border-t border-white/5 disabled:opacity-50"
+
+                     >
+
+                       <Trash2 className="w-4 h-4" />
+
+                       Remove cover photo
+
+                     </button>
+
+                   )}
+
+                 </motion.div>
+
+               )}
+
+             </AnimatePresence>
+
+           </div>
+
+         )}
 
          
 
          {/* Profile Image Container - Absolutely Positioned with High Z-Index */}
 
-         <div className="absolute bottom-[-60px] left-12 z-50">
+         <div className="absolute bottom-[-48px] left-6 md:left-10 z-50">
 
             <div className="relative">
 
@@ -1952,7 +2063,7 @@ export default function Profile() {
 
                  <div className="relative">
 
-                   <div className="w-[140px] h-[140px] rounded-full border-4 border-slate-950 shadow-2xl transition-all duration-300">
+                   <div className="w-[120px] h-[120px] md:w-[140px] md:h-[140px] rounded-full border-4 border-slate-950 shadow-2xl transition-all duration-300">
 
                       {(() => {
 
@@ -2116,7 +2227,7 @@ export default function Profile() {
 
                  </div>
 
-               <div className="absolute bottom-2 right-2 w-6 h-6 bg-green-500 border-4 border-slate-950 rounded-full" />
+               <div className="absolute bottom-1.5 right-1.5 w-5 h-5 bg-green-500 border-[3px] border-slate-950 rounded-full" title="Online" />
 
             </div>
 
@@ -2142,37 +2253,37 @@ export default function Profile() {
 
       />
 
-      {/* Profile Info Section - Below Banner */}
+      {/* Profile Info Section - sits beside the avatar on md+ */}
 
-      <div className="max-w-7xl mx-auto px-6 pt-24">
+      <div className="px-2 md:pl-44 pt-16 md:pt-2">
 
-         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 mb-12">
+         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
 
-            <div className="text-center md:text-left flex-1">
+            <div className="text-center md:text-left flex-1 min-w-0">
 
-               <h1 className="text-4xl md:text-5xl font-bold flex items-center justify-center md:justify-start gap-3 mb-3">
+               <h1 className="text-3xl md:text-4xl font-bold flex items-center justify-center md:justify-start gap-2 mb-1">
 
-                  {getDisplayProfile()?.full_name || getDisplayProfile()?.name || getDisplayProfile()?.username || 'Member'}
+                  <span className="truncate">{getDisplayProfile()?.full_name || getDisplayProfile()?.name || getDisplayProfile()?.username || 'Member'}</span>
 
-                  <ShieldCheck className="w-6 h-6 md:w-7 md:h-7 text-blue-400" />
+                  <ShieldCheck className="w-5 h-5 md:w-6 md:h-6 text-blue-400 flex-shrink-0" />
 
                </h1>
 
-               <p className="text-slate-300 font-medium text-lg mb-4">Expertise Swapper</p>
+               <p className="text-slate-400 text-sm mb-2">Expertise Swapper</p>
 
-               <div className="flex flex-col md:flex-row items-center justify-center md:justify-start gap-4 text-sm text-slate-400">
+               <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-4 gap-y-1 text-xs text-slate-500">
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
 
-                     <MapPin className="w-4 h-4" />
+                     <MapPin className="w-3.5 h-3.5" />
 
                      {currentUser?.location || 'Add your location'}
 
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
 
-                     <Calendar className="w-4 h-4" />
+                     <Calendar className="w-3.5 h-3.5" />
 
                      Joined {formatDate(currentUser?.joinDate || '')}
 
@@ -2182,25 +2293,49 @@ export default function Profile() {
 
             </div>
 
-            
 
-            <div className="flex gap-3">
 
-               <button className="btn-secondary p-3 rounded-2xl">
+            <div className="flex gap-2 justify-center md:justify-end">
 
-                  <Share2 className="w-5 h-5" />
+               <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const shareId = profileId || user?.id;
+                    if (!shareId) {
+                      toast.error('Unable to share profile');
+                      return;
+                    }
+                    const displayName =
+                      getDisplayProfile()?.full_name ||
+                      getDisplayProfile()?.name ||
+                      getDisplayProfile()?.username ||
+                      'Member';
+                    shareOrCopy({
+                      url: profileShareUrl(shareId),
+                      title: `${displayName} on Swapill`,
+                      text: `Check out ${displayName}'s profile on Swapill`,
+                    });
+                  }}
+                  className="btn-secondary p-2.5 rounded-xl cursor-pointer relative z-10"
+                  aria-label="Share profile"
+                  title="Share profile"
+               >
+
+                  <Share2 className="w-4 h-4 pointer-events-none" />
 
                </button>
 
-               <button 
+               <button
 
                   onClick={() => navigate('/explore')}
 
-                  className="btn-primary px-6 md:px-8 flex items-center gap-2"
+                  className="btn-primary px-5 py-2.5 flex items-center gap-2 text-sm"
 
                >
 
-                  <MessageSquare className="w-5 h-5" />
+                  <MessageSquare className="w-4 h-4" />
 
                   Start Exchange
 
@@ -2214,37 +2349,37 @@ export default function Profile() {
 
 
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-12 mt-8 md:mt-16 lg:mt-32">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
 
         {/* Left Column: About */}
 
-        <div className="space-y-8">
+        <div className="space-y-6">
 
-           <section className="glass-card p-8">
+           <section className="glass-card p-6">
 
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
 
-                <h3 className="text-xl font-bold">About Me</h3>
+                <h3 className="text-lg font-bold">About Me</h3>
 
                 <button
 
                   onClick={() => setShowEditModal(true)}
 
-                  className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
+                  title="Edit profile"
+
+                  className="p-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-all"
 
                 >
 
-                  <Edit2 className="w-4 h-4 text-gray-400" />
+                  <Edit2 className="w-3.5 h-3.5 text-gray-400" />
 
                 </button>
 
               </div>
 
-                
-
                 {profile?.bio ? (
 
-                  <p className="text-slate-400 leading-relaxed mb-8">
+                  <p className="text-slate-400 leading-relaxed mb-6 text-sm">
 
                     {profile?.bio}
 
@@ -2252,7 +2387,7 @@ export default function Profile() {
 
                 ) : (
 
-                  <p className="text-slate-400 leading-relaxed mb-8 italic">
+                  <p className="text-slate-500 leading-relaxed mb-6 italic text-sm">
 
                     No bio added yet. Tell others about yourself and what skills you can share...
 
@@ -2260,31 +2395,29 @@ export default function Profile() {
 
                 )}
 
-                
+                <div className="space-y-3 text-sm">
 
-                <div className="space-y-4">
+                 <div className="flex items-center gap-3 text-slate-300">
 
-                 <div className="flex items-center gap-3 text-slate-300 text-sm">
+                    <MapPin className="w-4 h-4 text-slate-500 flex-shrink-0" />
 
-                    <MapPin className="w-4 h-4 text-slate-500" />
-
-                    {currentUser?.location || 'Add your location'}
+                    <span className="truncate">{currentUser?.location || 'Add your location'}</span>
 
                  </div>
 
-                 <div className="flex items-center gap-3 text-slate-300 text-sm">
+                 <div className="flex items-center gap-3 text-slate-300">
 
-                    <Calendar className="w-4 h-4 text-slate-500" />
+                    <Calendar className="w-4 h-4 text-slate-500 flex-shrink-0" />
 
                     Joined {formatDate(currentUser?.joinDate || '')}
 
                  </div>
 
-                 <div className="flex items-center gap-3 text-slate-300 text-sm">
+                 <div className="flex items-center gap-3 text-slate-300">
 
-                    <Mail className="w-4 h-4 text-slate-500" />
+                    <Mail className="w-4 h-4 text-slate-500 flex-shrink-0" />
 
-                    {currentUser.name || 'Expert Member'}
+                    <span className="truncate">{currentUser?.email || currentUser?.name || 'Expert Member'}</span>
 
                  </div>
 
@@ -2294,15 +2427,13 @@ export default function Profile() {
 
 
 
-           <section className="glass-card p-8">
+           <section className="glass-card p-6">
 
-              <h3 className="text-xl font-bold mb-6">Statistics</h3>
+              <h3 className="text-lg font-bold mb-4">Statistics</h3>
 
-              <div className="space-y-6">
+              <div className="space-y-4">
 
-                 {/* Trust Score - Hidden for new users */}
-
-                 {currentUser?.trustScore > 0 && (
+                 {(currentUser?.trustScore ?? 0) > 0 && (
 
                    <div>
 
@@ -2310,13 +2441,13 @@ export default function Profile() {
 
                          <span className="text-slate-400">Trust Score</span>
 
-                         <span className="text-green-400 font-bold">{currentUser.trustScore}%</span>
+                         <span className="text-green-400 font-bold">{currentUser?.trustScore}%</span>
 
                       </div>
 
                       <div className="h-2 bg-white/5 rounded-full overflow-hidden">
 
-                         <div className="h-full bg-green-500" style={{ width: `${currentUser.trustScore}%` }} />
+                         <div className="h-full bg-green-500" style={{ width: `${currentUser?.trustScore}%` }} />
 
                       </div>
 
@@ -2324,23 +2455,21 @@ export default function Profile() {
 
                  )}
 
-                 
+                 <div className="grid grid-cols-2 gap-3">
 
-                 <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 rounded-xl bg-white/5 text-center">
 
-                    <div className="p-4 rounded-2xl bg-white/5 text-center">
+                       <div className="text-xl font-bold">{currentUser?.endorsements || 0}</div>
 
-                       <div className="text-2xl font-bold">{currentUser?.endorsements || 0}</div>
-
-                       <div className="text-[10px] uppercase font-black text-slate-500">Endorsements</div>
+                       <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-0.5">Endorsements</div>
 
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/5 text-center">
+                    <div className="p-3 rounded-xl bg-white/5 text-center">
 
-                       <div className="text-2xl font-bold">{currentUser?.exchanges || 0}</div>
+                       <div className="text-xl font-bold">{currentUser?.exchanges || 0}</div>
 
-                       <div className="text-[10px] uppercase font-black text-slate-500">Exchanges</div>
+                       <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-0.5">Exchanges</div>
 
                     </div>
 
@@ -2356,13 +2485,13 @@ export default function Profile() {
 
         {/* Right Column: Skills & Reviews */}
 
-        <div className="lg:col-span-2 space-y-12">
+        <div className="lg:col-span-2 space-y-8">
 
           <section>
 
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-5">
 
-              <h2 className="text-2xl font-bold">Active Offerings</h2>
+              <h2 className="text-xl font-bold">Active Offerings</h2>
 
               <div className="relative" ref={dropdownRef}>
 
@@ -2406,7 +2535,7 @@ export default function Profile() {
 
                           <div className="space-y-2">
 
-                            {displaySkills.map((skill) => (
+                            {displaySkills.map((skill: any) => (
 
                               <div key={skill.id} className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] transition-colors">
 
@@ -2486,9 +2615,9 @@ export default function Profile() {
 
               {SKILL_CATEGORIES.map((category, index) => {
 
-                const hasSkills = displaySkills.some(skill => skill.category === category.id);
+                const hasSkills = displaySkills.some((skill: any) => skill.category === category.id);
 
-                const categorySkills = displaySkills.filter(skill => skill.category === category.id);
+                const categorySkills = displaySkills.filter((skill: any) => skill.category === category.id);
 
                 
 
@@ -2508,15 +2637,15 @@ export default function Profile() {
 
                   >
 
-                    <div className="glass-card p-6 h-full min-h-[180px] flex flex-col justify-between hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all duration-300 hover:scale-105">
+                    <div className="glass-card p-4 h-full min-h-[140px] flex flex-col justify-between hover:shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all duration-300 hover:scale-[1.02]">
 
                       {/* Category Header */}
 
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center justify-between mb-3">
 
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center group-hover:from-purple-500/30 group-hover:to-violet-500/30 transition-all duration-300">
+                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center group-hover:from-purple-500/30 group-hover:to-violet-500/30 transition-all duration-300">
 
-                          <category.icon className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" />
+                          <category.icon className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" />
 
                         </div>
 
@@ -2532,11 +2661,13 @@ export default function Profile() {
 
                             }}
 
-                            className="w-8 h-8 rounded-full bg-purple-500/20 hover:bg-purple-500/30 flex items-center justify-center transition-all duration-300 group-hover:scale-110"
+                            title={`Add ${category.name} skill`}
+
+                            className="w-7 h-7 rounded-full bg-purple-500/20 hover:bg-purple-500/30 flex items-center justify-center transition-all duration-300 group-hover:scale-110"
 
                           >
 
-                            <Plus className="w-4 h-4 text-purple-400" />
+                            <Plus className="w-3.5 h-3.5 text-purple-400" />
 
                           </button>
 
@@ -2548,17 +2679,17 @@ export default function Profile() {
 
                       {/* Category Info */}
 
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
 
-                        <h3 className="text-lg font-semibold text-white mb-2">{category.name}</h3>
+                        <h3 className="text-sm font-semibold text-white mb-1.5 truncate">{category.name}</h3>
 
                         {hasSkills ? (
 
-                          <div className="space-y-2">
+                          <div className="space-y-1">
 
-                            {categorySkills.slice(0, 2).map((skill, skillIndex) => (
+                            {categorySkills.slice(0, 2).map((skill: any, skillIndex: number) => (
 
-                              <div key={skillIndex} className="text-sm text-slate-300">
+                              <div key={skillIndex} className="text-xs text-slate-300 truncate">
 
                                 • {skill.title}
 
@@ -2580,7 +2711,7 @@ export default function Profile() {
 
                         ) : (
 
-                          <p className="text-sm text-slate-500 italic">
+                          <p className="text-xs text-slate-500 italic">
 
                             No skills added yet
 
@@ -2590,13 +2721,11 @@ export default function Profile() {
 
                       </div>
 
-                      
-
                       {/* Category Footer */}
 
-                      <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/10">
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
 
-                        <span className="text-xs text-slate-500">
+                        <span className="text-[11px] text-slate-500">
 
                           {hasSkills ? `${categorySkills.length} skill${categorySkills.length > 1 ? 's' : ''}` : 'Add skills'}
 
@@ -2614,7 +2743,7 @@ export default function Profile() {
 
                             }}
 
-                            className="text-xs text-purple-400 hover:text-purple-300 transition-colors duration-300"
+                            className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors duration-300"
 
                           >
 
@@ -2662,35 +2791,19 @@ export default function Profile() {
 
 
 
-          <section className="glass-card p-8">
+          <section className="glass-card p-6">
 
-            <div className="flex items-center justify-between mb-10">
+            <div className="flex items-center justify-between mb-5">
 
-              <h2 className="text-2xl font-bold">Reviews & Feedback</h2>
+              <h2 className="text-xl font-bold">Reviews & Feedback</h2>
 
-              {currentUser?.exchanges > 0 ? (
+              {(currentUser?.exchanges ?? 0) > 0 && (currentUser?.trustScore ?? 0) > 0 && (
 
-                <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 text-yellow-500 font-bold">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-500/10 text-yellow-500 text-sm font-semibold">
 
-                   <Star className="w-4 h-4 fill-current" />
+                   <Star className="w-3.5 h-3.5 fill-current" />
 
-                   5.0 rating
-
-                </div>
-
-              ) : (
-
-                <div className="text-center py-12">
-
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4">
-
-                    <MessageCircle className="w-8 h-8 text-purple-400" />
-
-                  </div>
-
-                  <div className="text-white text-xl mb-2">No Reviews Yet</div>
-
-                  <div className="text-slate-400 mb-6">Be the first to leave a review for this user.</div>
+                   {(currentUser?.trustScore ?? 0).toFixed(1)}
 
                 </div>
 
@@ -2698,31 +2811,27 @@ export default function Profile() {
 
             </div>
 
+            {(currentUser?.exchanges ?? 0) === 0 ? (
 
+              <div className="text-center py-8">
 
-            {/* Empty State for Reviews */}
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-3">
 
-            {currentUser?.exchanges === 0 ? (
-
-              <div className="text-center py-12">
-
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4">
-
-                  <MessageCircle className="w-8 h-8 text-purple-400" />
+                  <MessageCircle className="w-7 h-7 text-purple-400" />
 
                 </div>
 
-                <div className="text-white text-xl mb-2">No Reviews Yet</div>
+                <div className="text-white text-base font-semibold mb-1">No reviews yet</div>
 
-                <div className="text-slate-400 mb-6">Be the first to leave a review for this user.</div>
+                <div className="text-slate-400 text-sm">Reviews will appear here after your first swap.</div>
 
               </div>
 
             ) : (
 
-              <div className="space-y-10">
+              <div className="text-slate-400 text-sm py-4 text-center">
 
-                 {/* Reviews would go here when user has exchanges */}
+                Reviews from your swap partners will appear here.
 
               </div>
 

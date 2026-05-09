@@ -9,11 +9,12 @@ interface UserProfile {
   bio: string;
   location: string;
   joinDate: string;
-  avatar_url?: string;
-  skills: any[];
-  endorsements: number;
-  exchanges: number;
-  trustScore: number;
+  avatar_url?: string | null;
+  cover_url?: string | null;
+  skills?: any[];
+  endorsements?: number;
+  exchanges?: number;
+  trustScore?: number;
   updated_at?: string;
 }
 
@@ -82,17 +83,17 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({ childr
             trustScore: 0
           };
           
-          // Create profile in database
+          // Create profile in database (column names match live schema)
           const { error: insertError } = await supabase
             .from('profiles')
             .insert([{
               id: user.id,
-              name: basicProfile.name,
+              full_name: basicProfile.name,
               email: basicProfile.email,
               bio: basicProfile.bio,
               location: basicProfile.location,
               avatar_url: basicProfile.avatar_url,
-              created_at: basicProfile.joinDate
+              updated_at: basicProfile.joinDate,
             }]);
 
           if (insertError) {
@@ -105,16 +106,24 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({ childr
         // Transform profile data to match UserProfile interface
         const userProfile: UserProfile = {
           id: profile.id,
-          name: profile.name || user.email?.split('@')[0] || 'User',
+          name: profile.full_name || profile.username || user.email?.split('@')[0] || 'User',
           email: profile.email || user.email || '',
           bio: profile.bio || '',
           location: profile.location || '',
-          joinDate: profile.created_at || user.created_at || new Date().toISOString(),
+          // joinDate is the auth account creation time; profile.created_at
+          // exists in the canonical init.sql schema, profile.updated_at in the
+          // older deployed schema — fall through both so either works.
+          joinDate: user.created_at || profile.created_at || profile.updated_at || new Date().toISOString(),
           avatar_url: profile.avatar_url,
+          cover_url: profile.cover_url || null,
           skills: profile.skills || [],
-          endorsements: profile.endorsements || 0,
-          exchanges: profile.exchanges || 0,
-          trustScore: profile.trust_score || 0,
+          endorsements: profile.endorsements ?? 0,
+          // Two schemas: init.sql uses `exchanges`, live DB uses
+          // `total_swaps`/`swaps_count`. Read whichever exists.
+          exchanges: profile.exchanges ?? profile.total_swaps ?? profile.swaps_count ?? 0,
+          // Same for trust score: init.sql uses `trust_score` (0-100), live
+          // DB uses `rating` (0-5). Both are fine to display verbatim.
+          trustScore: profile.trust_score ?? profile.rating ?? 0,
           updated_at: profile.updated_at
         };
         
@@ -140,7 +149,6 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({ childr
     }
 
     try {
-      console.log('Fetching friends for user:', user.id);
       
       // Fetch accepted swap requests where current user is either sender or receiver
       const { data: acceptedRequests, error } = await supabase
@@ -167,7 +175,6 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({ childr
       });
 
       const friendsArray = Array.from(friendIds);
-      console.log('Friends found:', friendsArray);
       setFriends(friendsArray);
     } catch (error) {
       console.error('Error in refreshFriends:', error);
@@ -176,14 +183,34 @@ export const UserProfileProvider: React.FC<UserProfileProviderProps> = ({ childr
   };
 
   useEffect(() => {
-    if (user) {
-      refreshProfile();
-      refreshFriends();
-    } else {
+    if (!user?.id) {
       setCurrentUser(null);
       setFriends([]);
       setLoading(false);
+      return;
     }
+
+    refreshProfile();
+    refreshFriends();
+
+    // Keep friends list in sync when swap requests change involving me
+    const channel = supabase
+      .channel(`profile-friends-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'swap_requests', filter: `sender_id=eq.${user.id}` },
+        () => refreshFriends(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'swap_requests', filter: `receiver_id=eq.${user.id}` },
+        () => refreshFriends(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   const value: UserProfileContextType = {

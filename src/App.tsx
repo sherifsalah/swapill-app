@@ -1,8 +1,6 @@
-import React, { useEffect, useState, createContext, useContext, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "motion/react";
+import React, { useEffect, Suspense } from "react";
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import { supabase } from "./config/supabase";
 
 import MainLayout from "./components/layout/MainLayout";
 import Footer from "./components/layout/Footer";
@@ -19,6 +17,7 @@ import Chat from "./pages/Chat";
 import RequestsPage from "./pages/RequestsPage";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AuthCallback from "./pages/AuthCallback";
 
 // Safety Wrapper Component
 function SafetyWrapper({ children }: { children: React.ReactNode }) {
@@ -40,7 +39,7 @@ function ScrollToTop() {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -77,12 +76,12 @@ function AppContent() {
         } />
         <Route path="/chat" element={
           <ProtectedRoute>
-            <Chat conversationsCount={20} />
+            <Chat />
           </ProtectedRoute>
         } />
-        <Route path="/chat/:friendId" element={
+        <Route path="/chat/:conversationId" element={
           <ProtectedRoute>
-            <Chat conversationsCount={20} />
+            <Chat />
           </ProtectedRoute>
         } />
         <Route path="/requests" element={
@@ -92,45 +91,12 @@ function AppContent() {
         } />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Routes>
       {/* Hide Footer on all pages except Home page */}
       {location.pathname === '/' && <Footer />}
     </MainLayout>
   );
-}
-
-function PageWrapper({ children }: { children: React.ReactNode }) {
-
-  const location = useLocation();
-
-  return (
-
-    <AnimatePresence mode="wait">
-
-      <motion.main
-
-        key={location.pathname}
-
-        initial={{ opacity: 0, y: 10 }}
-
-        animate={{ opacity: 1, y: 0 }}
-
-        exit={{ opacity: 0, y: -10 }}
-
-        transition={{ duration: 0.3 }}
-
-        className="flex-grow flex flex-col"
-
-      >
-
-        {children}
-
-      </motion.main>
-
-    </AnimatePresence>
-
-  );
-
 }
 
 export default function App() {

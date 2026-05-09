@@ -1,100 +1,43 @@
 import { isUserCorrupted } from './safeFallbacks';
 
 /**
- * Validates if a user profile should be rendered
- * @param profile - User profile object
- * @param user - Auth user object (optional)
- * @returns boolean - true if user should be rendered, false if corrupted
+ * Validates if a user profile should be rendered.
+ * Conservative: only skip when there's literally nothing usable.
  */
 export const shouldRenderUser = (profile?: any, user?: any): boolean => {
-  // Skip completely corrupted users
-  if (isUserCorrupted(profile, user)) {
-    console.warn('Skipping corrupted user:', { profile, user });
-    return false;
-  }
+  if (isUserCorrupted(profile, user)) return false;
 
-  // Additional validation checks
-  if (!profile?.id && !user?.id) {
-    console.warn('Skipping user without ID:', { profile, user });
-    return false;
-  }
+  // Need *some* identifier
+  if (!profile?.id && !user?.id) return false;
 
-  // Skip users with "Unknown User" or null names
-  if (!profile?.full_name || profile?.full_name === 'Unknown User' || profile?.full_name === 'null' || profile?.full_name === null) {
-    console.warn('Skipping user with Unknown User name:', { profile });
-    return false;
-  }
+  // Need *some* display name (full_name OR username OR email-derived).
+  // The live DB legitimately has username=null on most rows, so we don't
+  // require it as long as full_name is present.
+  const fullName = (profile?.full_name || '').trim();
+  const username = (profile?.username || '').trim();
+  if (!fullName && !username) return false;
 
-  // Skip users with null/undefined usernames
-  if (!profile?.username || profile?.username === 'null' || profile?.username === 'undefined') {
-    console.warn('Skipping user with null username:', { profile });
-    return false;
-  }
-
-  // Skip users with empty or whitespace-only names
-  if (profile?.full_name && profile.full_name.trim().length === 0) {
-    console.warn('Skipping user with empty name:', { profile });
-    return false;
-  }
-
-  // Skip users with generic placeholder names
-  const placeholderNames = ['User', 'Member', 'Test User', 'Demo User', 'Anonymous'];
-  if (profile?.full_name && placeholderNames.includes(profile.full_name.trim())) {
-    console.warn('Skipping user with placeholder name:', { profile });
-    return false;
-  }
-
-  // Skip users with no valid name field
-  if (profile?.id && !profile?.full_name && !profile?.username) {
-    console.warn('Skipping user without name:', { profile });
-    return false;
-  }
+  if (fullName === 'Unknown User' || fullName === 'null') return false;
 
   return true;
 };
 
 /**
  * Validates a conversation should be displayed
- * @param conversation - Conversation object with other_user
- * @returns boolean - true if conversation should be displayed
  */
 export const shouldRenderConversation = (conversation: any): boolean => {
-  if (!conversation?.other_user) {
-    console.warn('Skipping conversation without other_user:', conversation);
-    return false;
-  }
-
-  // Additional check for null/undefined other_user
-  if (!conversation.other_user.id) {
-    console.warn('Skipping conversation with null other_user ID:', conversation);
-    return false;
-  }
-
+  if (!conversation?.other_user) return false;
+  if (!conversation.other_user.id) return false;
   return shouldRenderUser(conversation.other_user);
 };
 
-/**
- * Filters out corrupted users from an array
- * @param users - Array of user objects
- * @returns Filtered array with only valid users
- */
-export const filterValidUsers = (users: any[]): any[] => {
-  return users.filter(user => shouldRenderUser(user));
-};
+export const filterValidUsers = (users: any[]): any[] => users.filter(shouldRenderUser);
 
-/**
- * Filters out corrupted conversations from an array
- * @param conversations - Array of conversation objects
- * @returns Filtered array with only valid conversations
- */
-export const filterValidConversations = (conversations: any[]): any[] => {
-  return conversations.filter(conv => shouldRenderConversation(conv));
-};
+export const filterValidConversations = (conversations: any[]): any[] =>
+  conversations.filter(shouldRenderConversation);
 
 /**
  * Validates profile data completeness
- * @param profile - Profile object
- * @returns Object with validation results
  */
 export const validateProfileCompleteness = (profile: any): {
   isValid: boolean;
@@ -104,12 +47,10 @@ export const validateProfileCompleteness = (profile: any): {
   const missingFields: string[] = [];
   const warnings: string[] = [];
 
-  // Required fields
   if (!profile?.id) missingFields.push('id');
   if (!profile?.full_name && !profile?.username) missingFields.push('name');
   if (!profile?.email) warnings.push('email');
 
-  // Optional but recommended fields
   if (!profile?.bio) warnings.push('bio');
   if (!profile?.avatar_url) warnings.push('avatar_url');
   if (!profile?.skills_offered?.length && !profile?.skills?.length) warnings.push('skills');
@@ -117,6 +58,6 @@ export const validateProfileCompleteness = (profile: any): {
   return {
     isValid: missingFields.length === 0,
     missingFields,
-    warnings
+    warnings,
   };
 };

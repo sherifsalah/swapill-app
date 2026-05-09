@@ -1,5 +1,7 @@
 # 🚨 IMPORTANT: Create Your .env File
 
+> **ℹ️ Note.** The current `src/config/supabase.ts` ships with a hardcoded fallback URL/anon key, so the dev app boots without an `.env`. For your own deployment you should still create one — see [README → Environment Variables](./README.md#environment-variables--متغيرات-البيئة).
+
 ## The Error You're Seeing
 ```
 supabase.ts:7 Uncaught Error: Missing Supabase environment variables. Please check your .env file.

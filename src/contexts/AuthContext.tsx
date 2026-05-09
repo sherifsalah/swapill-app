@@ -1,12 +1,18 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '../config/supabase';
-import { User } from '@supabase/supabase-js';
 
 export interface AuthUser {
   id: string;
   email: string;
   full_name?: string;
   avatar_url?: string;
+  created_at?: string;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+    avatar_url?: string;
+    [key: string]: any;
+  };
 }
 
 interface AuthContextType {
@@ -31,6 +37,15 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+const toAuthUser = (sessionUser: any): AuthUser => ({
+  id: sessionUser.id,
+  email: sessionUser.email || '',
+  full_name: sessionUser.user_metadata?.full_name || sessionUser.user_metadata?.name,
+  avatar_url: sessionUser.user_metadata?.avatar_url,
+  created_at: sessionUser.created_at,
+  user_metadata: sessionUser.user_metadata || {},
+});
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,17 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const refreshUser = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const authUser: AuthUser = {
-          id: session.user.id,
-          email: session.user.email || '',
-          full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
-          avatar_url: session.user.user_metadata?.avatar_url
-        };
-        setUser(authUser);
-      } else {
-        setUser(null);
-      }
+      setUser(session?.user ? toAuthUser(session.user) : null);
     } catch (error) {
       console.error('Error refreshing user:', error);
       setUser(null);
@@ -59,26 +64,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   useEffect(() => {
-    // Get initial session with timeout fallback
     const getInitialSession = async () => {
-      // Add loading timeout fallback to prevent infinite loading
+      // Cap initial auth loading so we don't get stuck on a blank screen if the
+      // network or Supabase is slow.
       const loadingTimeout = setTimeout(() => {
-        console.log('Auth loading timeout - forcing loading to false');
         setIsInitialLoading(false);
         setLoading(false);
-      }, 8000); // 8 second timeout to allow database trigger
+      }, 8000);
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const authUser: AuthUser = {
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
-            avatar_url: session.user.user_metadata?.avatar_url
-          };
-          setUser(authUser);
-        }
+        if (session?.user) setUser(toAuthUser(session.user));
       } catch (error) {
         console.error('Error getting initial session:', error);
         setUser(null);
@@ -91,34 +87,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     getInitialSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-
         if (event === 'SIGNED_IN' && session?.user) {
-          const authUser: AuthUser = {
-            id: session.user.id,
-            email: session.user.email || '',
-            full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
-            avatar_url: session.user.user_metadata?.avatar_url
-          };
-          setUser(authUser);
+          setUser(toAuthUser(session.user));
           setLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setLoading(false);
-        } else if (event === 'TOKEN_REFRESHED') {
-          // Handle token refresh
-          if (session?.user) {
-            const authUser: AuthUser = {
-              id: session.user.id,
-              email: session.user.email || '',
-              full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
-              avatar_url: session.user.user_metadata?.avatar_url
-            };
-            setUser(authUser);
-          }
+        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setUser(toAuthUser(session.user));
         }
       }
     );

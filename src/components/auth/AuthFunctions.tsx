@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 // Sign Up function (إنشاء حساب جديد)
 export const signUp = async (email: string, password: string, fullName?: string) => {
   try {
-    console.log('Starting sign up process...');
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -22,7 +21,6 @@ export const signUp = async (email: string, password: string, fullName?: string)
       return { success: false, error: error.message };
     }
     
-    console.log('Sign up successful:', data);
     
     // Insert user into 'users' table after successful auth
     if (data.user) {
@@ -58,7 +56,6 @@ export const signUp = async (email: string, password: string, fullName?: string)
 // Login function (تسجيل دخول)
 export const signIn = async (email: string, password: string) => {
   try {
-    console.log('Starting sign in process...');
     
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -71,7 +68,6 @@ export const signIn = async (email: string, password: string) => {
       return { success: false, error: error.message };
     }
     
-    console.log('Sign in successful:', data);
     toast.success('Welcome back!');
     return { success: true, data };
     

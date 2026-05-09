@@ -30,7 +30,6 @@ export const useRealtimeSync = (options: RealtimeSyncOptions) => {
               table: 'profiles' 
             }, 
             (payload) => {
-              console.log('Profile change detected:', payload);
               
               if (payload.eventType === 'INSERT' && options.onNewUser) {
                 options.onNewUser(payload.new);
@@ -50,7 +49,6 @@ export const useRealtimeSync = (options: RealtimeSyncOptions) => {
               table: 'skills'
             },
             (payload) => {
-              console.log('Skill change detected:', payload);
               if (options.onSkillUpdate) {
                 options.onSkillUpdate(payload.new);
               }
@@ -67,7 +65,6 @@ export const useRealtimeSync = (options: RealtimeSyncOptions) => {
               table: 'conversations'
             },
             (payload) => {
-              console.log('Conversation change detected:', payload);
               if (options.onConversationUpdate) {
                 options.onConversationUpdate(payload.new);
               }
@@ -79,7 +76,6 @@ export const useRealtimeSync = (options: RealtimeSyncOptions) => {
         skillsChannel.subscribe();
         conversationsChannel.subscribe();
 
-        console.log('Realtime subscriptions active');
         
         // Store channels for cleanup
         channelRef.current = {
@@ -104,7 +100,6 @@ export const useRealtimeSync = (options: RealtimeSyncOptions) => {
               supabase.removeChannel(channel as RealtimeChannel);
             }
           });
-          console.log('Realtime subscriptions cleaned up');
         } catch (error) {
           console.error('Realtime cleanup error (non-critical):', error);
         }

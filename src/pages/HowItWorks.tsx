@@ -40,8 +40,9 @@ export default function HowItWorks() {
       </div>
 
       <div className="relative space-y-12">
-        {/* Connection Line */}
-        <div className="absolute left-[39px] md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500/50 via-blue-500/50 to-transparent hidden md:block" />
+        {/* Connection Line — stops short of the last step so the gradient
+            tapers naturally instead of dangling past Step 04 */}
+        <div className="absolute left-[39px] md:left-1/2 top-10 bottom-24 w-px bg-gradient-to-b from-purple-500/50 via-blue-500/50 to-purple-500/10 hidden md:block" />
 
         {STEPS.map((step, idx) => (
           <motion.div 
@@ -62,7 +63,12 @@ export default function HowItWorks() {
               <div className={`w-20 h-20 rounded-full ${step.color} bg-opacity-20 flex items-center justify-center ring-8 ring-[#0f172a] shadow-xl shadow-purple-500/10`}>
                 <step.icon className={`w-8 h-8 ${step.color.replace('bg-', 'text-')}`} />
               </div>
-              <div className="mt-4 text-xs font-black text-slate-600 uppercase tracking-widest hidden md:block">Step 0{idx + 1}</div>
+              {/* Step label as a pill that sits cleanly over the connecting line */}
+              <div className="mt-3 hidden md:block">
+                <span className="inline-block bg-[#0f172a] px-3 py-1 rounded-full border border-white/10 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  Step 0{idx + 1}
+                </span>
+              </div>
             </div>
 
             <div className="flex-1 hidden md:block" />

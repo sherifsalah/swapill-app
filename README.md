@@ -22,13 +22,13 @@ Swapill is a modern skill-exchange platform that connects people who want to sha
 
 ### Technologies Used
 
-- **Frontend**: React 18 with TypeScript
-- **Styling**: Tailwind CSS for modern, responsive design
-- **Backend**: Supabase for database and authentication
-- **Real-time**: Supabase Realtime for live messaging
+- **Frontend**: React 19 with TypeScript
+- **Build tool**: Vite 6 + Tailwind CSS v4 (`@tailwindcss/vite`)
+- **Backend**: Supabase (Postgres + Auth + Storage + Realtime)
+- **Real-time**: Supabase Realtime channels for chat, presence, and notifications
 - **State Management**: React Context API
-- **Routing**: React Router
-- **Icons**: Lucide React Icons
+- **Routing**: React Router v7
+- **Icons**: Lucide React
 
 ---
 
@@ -47,13 +47,13 @@ Swapill is a modern skill-exchange platform that connects people who want to sha
 
 ### التقنيات المستخدمة
 
-- **الواجهة الأمامية**: React 18 مع TypeScript
-- **التصميم**: Tailwind CSS للتصميم العصري والمتجاوب
-- **الواجهة الخلفية**: Supabase لقاعدة البيانات والمصادقة
-- **الوقت الفعلي**: Supabase Realtime للمراسلة المباشرة
+- **الواجهة الأمامية**: React 19 مع TypeScript
+- **أداة البناء**: Vite 6 + Tailwind CSS v4 (`@tailwindcss/vite`)
+- **الواجهة الخلفية**: Supabase (قاعدة بيانات + مصادقة + تخزين + Realtime)
+- **الوقت الفعلي**: قنوات Supabase Realtime للدردشة والحضور والإشعارات
 - **إدارة الحالة**: React Context API
-- **التوجيه**: React Router
-- **الأيقونات**: Lucide React Icons
+- **التوجيه**: React Router v7
+- **الأيقونات**: Lucide React
 
 ---
 
@@ -89,6 +89,86 @@ Create a `.env` file in the root directory with the following variables:
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
+
+> The repo also ships with a hardcoded fallback in `src/config/supabase.ts` so the app boots without an `.env` against a shared dev project. For your own deployment, always set the env vars above.
+
+## Database Setup / إعداد قاعدة البيانات
+
+The canonical schema lives in [`supabase/init.sql`](./supabase/init.sql). The chained files under `supabase/migrations/` are historical and conflict with each other — **don't apply them**. Use `init.sql` as the single source of truth.
+
+### What `init.sql` provisions
+
+- Tables: `profiles`, `skills`, `swap_requests`, `conversations`, `messages`
+- RLS policies on every table (public read for profiles/skills, owner-write everywhere else)
+- `auth.users → profiles` insert trigger (`handle_new_user`) that auto-creates a profile row on signup
+- `set_updated_at` triggers for `profiles` and `swap_requests`
+- Public storage bucket `avatars` with owner-only write policies
+- A seed block that creates 100 demo users (email `seed_user_NNN@swapill.test`, password `Password123!`)
+
+### Initial install (fresh project)
+
+1. Create a new Supabase project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor** in the dashboard.
+3. Paste the entire contents of `supabase/init.sql` and run it. This drops & recreates the `public` schema, so it's only safe on a brand-new project (or a dev project you're OK to wipe).
+4. Copy your project's **Project URL** and **anon key** into your `.env`.
+5. Reload the schema cache: in **API Docs → Reload schema** (or run `NOTIFY pgrst, 'reload schema';`).
+
+### Optional: enable message attachments
+
+To enable file/image attachments in chat, run [`supabase/attachments.sql`](./supabase/attachments.sql) once after `init.sql`. It:
+
+- Adds `attachment_url`, `attachment_name`, `attachment_mime` columns to `messages`
+- Makes `messages.content` nullable (so attachment-only messages work)
+- Creates a public `attachments` storage bucket with owner-write policies
+- Reloads PostgREST schema cache
+
+### Optional: extra seed data
+
+Two extra seed scripts are useful for local development:
+
+- [`supabase/seed_egyptian.sql`](./supabase/seed_egyptian.sql) — adds 100 named Egyptian seed users (email pattern `<first>.<last>@swapill.test`, same password `Password123!`)
+- [`supabase/reseed_skills.sql`](./supabase/reseed_skills.sql) — replaces the random skills attached to each seed user with category-coherent ones (so a user listed as a `cooking` expert only has cooking skills)
+
+Run these only after `init.sql` has finished. They're idempotent enough to re-run if you tweak categories.
+
+### Re-running
+
+`init.sql` does `DROP SCHEMA public CASCADE` at the top, so re-running it wipes everything and starts over. If you want to add a single change without resetting (e.g. adding a column), write a one-off SQL snippet and run it through the SQL Editor — don't reach for the legacy files in `supabase/migrations/`.
+
+### Auth providers (optional)
+
+Email/password works out of the box once `init.sql` has run. Google/GitHub OAuth are wired in `Login`/`Signup` as "coming soon" placeholders — to enable them:
+
+1. Supabase **Authentication → Providers**: enable Google and/or GitHub, paste in the OAuth client ID + secret.
+2. Add the redirect URI to your provider:
+   - `https://<your-project-ref>.supabase.co/auth/v1/callback`
+3. Re-enable the live OAuth handler in `src/pages/Login.tsx` and `src/pages/Signup.tsx` (replace `handleOAuthComingSoon` with `signInWithOAuth`).
+4. The route `/auth/callback` is already wired in `src/App.tsx` and routes to `src/pages/AuthCallback.tsx`.
+
+## Deployment / النشر
+
+### Build
+
+```bash
+npm run build      # produces dist/
+npm run preview    # serves the built bundle locally on :3000
+npm run lint       # runs tsc --noEmit
+```
+
+### Vercel / Netlify
+
+`vercel.json` is already in the repo. To deploy:
+
+1. Push the repo to GitHub.
+2. Import it on Vercel (or your host of choice).
+3. Set the env vars `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the project settings.
+4. Build command: `npm run build`. Output directory: `dist`.
+
+### Hosting notes
+
+- The app is a single-page app — make sure your host rewrites every unknown route to `/index.html` (Vercel does this automatically; for Netlify add a redirect rule).
+- After deploying, add your production origin (`https://your-domain.com`) to **Supabase → Authentication → URL Configuration → Site URL** so OAuth and password resets redirect correctly.
+- If you enable OAuth, also add `https://your-domain.com/auth/callback` to the provider's authorized redirects.
 
 ## Project Structure / هيكل المشروع
 

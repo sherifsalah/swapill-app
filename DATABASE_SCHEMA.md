@@ -1,5 +1,7 @@
 # 🗄️ Swapill Database Schema
 
+> **⚠️ Outdated.** The canonical, working schema is now [`supabase/init.sql`](./supabase/init.sql). The chained migration files referenced in this doc (`001_…` through `044_…`) conflict with each other and should not be applied. See [README → Database Setup](./README.md#database-setup--إعداد-قاعدة-البيانات).
+
 ## 📋 Overview
 Complete database schema for Swapill platform using Supabase PostgreSQL with Row Level Security (RLS).
 

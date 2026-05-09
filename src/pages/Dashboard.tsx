@@ -1,12 +1,8 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 
-import { motion } from "motion/react";
-
-import { Plus, BookOpen, Clock, TrendingUp, Settings, ChevronRight, Edit, User, Trash2 } from "lucide-react";
+import { Plus, BookOpen, MessageCircle, UserPlus, TrendingUp, Settings, ChevronRight, Edit, User, Trash2 } from "lucide-react";
 
 import { Link, useNavigate } from "react-router-dom";
-
-import { SKILLS, USERS } from "../data/mockData";
 
 import toast from 'react-hot-toast';
 
@@ -15,6 +11,10 @@ import { supabase } from '../config/supabase';
 import { useAuth } from '../contexts/AuthContext';
 
 import { useUserProfile } from '../contexts/UserProfileContext.tsx';
+
+import { getAvatarGradient, getInitials } from '../utils/avatarColor';
+
+import SafeAvatar from '../components/shared/SafeAvatar';
 
 
 
@@ -52,15 +52,63 @@ export default function Dashboard() {
 
   const { currentUser, loading: profileLoading, updateProfile } = useUserProfile();
 
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  const [messageCount, setMessageCount] = useState<number>(0);
+
+  useEffect(() => {
+
+    if (!user?.id) return;
+
+    let cancelled = false;
+
+    const loadStats = async () => {
+
+      const [pending, sent] = await Promise.all([
+
+        supabase
+
+          .from('swap_requests')
+
+          .select('id', { count: 'exact', head: true })
+
+          .eq('receiver_id', user.id)
+
+          .eq('status', 'pending'),
+
+        supabase
+
+          .from('messages')
+
+          .select('id', { count: 'exact', head: true })
+
+          .eq('sender_id', user.id),
+
+      ]);
+
+      if (cancelled) return;
+
+      setPendingCount(pending.count || 0);
+
+      setMessageCount(sent.count || 0);
+
+    };
+
+    loadStats();
+
+    return () => {
+
+      cancelled = true;
+
+    };
+
+  }, [user?.id]);
+
 
 
   const handleDeleteSkill = async (skillId: string) => {
 
     try {
-
-      console.log('Deleting skill:', skillId);
-
-      
 
       if (!user?.id) {
 
@@ -152,8 +200,6 @@ export default function Dashboard() {
 
     }
 
-    console.log('Editing skill:', skill);
-
     // Navigate to profile page with skill context for editing
 
     navigate('/profile', { state: { userId: user.id, editingSkill: skill } });
@@ -172,8 +218,6 @@ export default function Dashboard() {
 
     }
 
-    console.log('Adding skill for user:', user.id);
-
     // Navigate to profile page with user context
 
     navigate('/profile', { state: { userId: user.id } });
@@ -186,67 +230,11 @@ export default function Dashboard() {
 
     if (!currentUser) return null;
 
-    
-
-    // Use uploaded avatar_url if available, otherwise show initials
-
-    if (currentUser.avatar_url) {
-
-      return (
-
-        <img 
-
-          src={currentUser.avatar_url} 
-
-          alt={currentUser.name} 
-
-          className="w-24 h-24 rounded-full object-cover mx-auto ring-4 ring-purple-500/20 p-1 bg-slate-900 shadow-xl"
-
-          style={{ aspectRatio: '1/1' }}
-
-          onError={(e) => {
-
-            const target = e.target as HTMLImageElement;
-
-            // Fallback to initials circle
-
-            target.style.display = 'none';
-
-            const parent = target.parentElement;
-
-            if (parent && !parent.querySelector('.fallback-circle')) {
-
-              const fallback = document.createElement('div');
-
-              fallback.className = 'fallback-circle absolute inset-0 flex items-center justify-center bg-gradient-to-br from-purple-400 to-pink-400 rounded-full text-white font-bold text-2xl';
-
-              fallback.textContent = currentUser.name.charAt(0).toUpperCase();
-
-              parent.appendChild(fallback);
-
-            }
-
-          }}
-
-        />
-
-      );
-
-    }
-
-    
-
-    // Default to initials circle
-
     return (
 
-      <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center mx-auto ring-4 ring-purple-500/20 p-1 bg-slate-900 shadow-xl">
+      <div className="flex justify-center">
 
-        <span className="text-white font-bold text-2xl">
-
-          {currentUser.name.charAt(0).toUpperCase()}
-
-        </span>
+        <SafeAvatar name={currentUser.name} src={currentUser.avatar_url} size={88} />
 
       </div>
 
@@ -336,79 +324,75 @@ export default function Dashboard() {
 
   return (
 
-    <div className="pt-8 pb-24 max-w-7xl mx-auto px-6">
+    <div className="pt-4 pb-16 max-w-7xl mx-auto px-4 md:px-6">
 
-      <div className="flex flex-col lg:flex-row gap-10">
-
-        
+      <div className="flex flex-col lg:flex-row gap-6">
 
         {/* Profile Card Sidebar */}
 
-        <aside className="lg:w-80 space-y-6">
+        <aside className="lg:w-72 space-y-4">
 
-          <div className="glass-card p-6 bg-gradient-to-br from-purple-500/5 to-transparent">
+          <div className="glass-card p-6 bg-gradient-to-br from-purple-500/5 to-transparent text-center">
 
-            <div className="text-center">
+            <div className="mb-4">
 
               {getAvatarDisplay()}
 
-              <div className="absolute bottom-1 right-1 w-6 h-6 bg-green-500 border-4 border-[#1e293b] rounded-full" />
-
             </div>
 
-            <h2 className="text-xl font-bold mb-1">{currentUser.name}</h2>
+            <h2 className="text-lg font-bold mb-0.5 truncate">{currentUser.name}</h2>
 
-            <p className="text-slate-400 text-sm mb-2">{currentUser.location}</p>
+            <p className="text-slate-400 text-xs mb-4 truncate">{currentUser.location || 'Location not set'}</p>
 
-            
+            {(currentUser.skills?.length ?? 0) > 0 && (
 
-            {/* Display all skills */}
+              <div className="mb-5 flex flex-wrap justify-center gap-1.5">
 
-            {currentUser.skills.length > 0 && (
+                {(currentUser.skills || []).slice(0, 6).map((skill: any, index: number) => (
 
-              <div className="mb-6">
+                  <span
 
-                <div className="flex flex-wrap gap-2">
+                    key={skill.id || index}
 
-                  {currentUser.skills.map((skill, index) => (
+                    className="px-2.5 py-0.5 bg-purple-500/20 text-purple-300 text-[11px] rounded-full border border-purple-500/30"
 
-                    <span 
+                  >
 
-                      key={skill.id || index}
+                    {skill.title}
 
-                      className="px-3 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-full border border-purple-500/30"
+                  </span>
 
-                    >
+                ))}
 
-                      {skill.title}
+                {(currentUser.skills?.length || 0) > 6 && (
 
-                    </span>
+                  <span className="px-2.5 py-0.5 text-[11px] text-slate-400">
 
-                  ))}
+                    +{(currentUser.skills?.length || 0) - 6}
 
-                </div>
+                  </span>
+
+                )}
 
               </div>
 
             )}
 
-            
-
-            <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-6">
+            <div className="grid grid-cols-2 gap-3 border-t border-white/5 pt-4">
 
                <div>
 
-                  <div className="text-lg font-bold text-white">{currentUser.exchanges}</div>
+                  <div className="text-base font-bold text-white">{currentUser.exchanges ?? 0}</div>
 
-                  <div className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Swaps</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-0.5">Swaps</div>
 
                </div>
 
                <div>
 
-                  <div className="text-lg font-bold text-white">{currentUser.trustScore > 0 ? currentUser.trustScore.toFixed(1) : 'N/A'}</div>
+                  <div className="text-base font-bold text-white">{(currentUser.trustScore ?? 0) > 0 ? (currentUser.trustScore as number).toFixed(1) : 'N/A'}</div>
 
-                  <div className="text-[10px] uppercase font-black text-slate-500 tracking-wider">Rating</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mt-0.5">Rating</div>
 
                </div>
 
@@ -416,11 +400,15 @@ export default function Dashboard() {
 
           </div>
 
+          <div className="glass-card p-3 space-y-1">
 
+             <button
 
-          <div className="glass-card p-4 space-y-1">
+                onClick={() => navigate('/dashboard')}
 
-             <button className="w-full flex items-center justify-between p-3 rounded-xl bg-purple-500/10 text-purple-400 font-medium">
+                className="w-full flex items-center justify-between p-2.5 rounded-lg bg-purple-500/10 text-purple-400 font-medium text-sm"
+
+             >
 
                 <div className="flex items-center gap-3">
 
@@ -434,13 +422,19 @@ export default function Dashboard() {
 
              </button>
 
-             <button className="w-full flex items-center justify-between p-3 rounded-xl text-slate-400 hover:bg-white/5 hover:text-white transition-all">
+             <button
+
+                onClick={() => navigate('/profile')}
+
+                className="w-full flex items-center justify-between p-2.5 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-all text-sm"
+
+             >
 
                 <div className="flex items-center gap-3">
 
                    <Settings className="w-4 h-4" />
 
-                   Account Settings
+                   Edit Profile
 
                 </div>
 
@@ -456,63 +450,71 @@ export default function Dashboard() {
 
         {/* Main Content */}
 
-        <div className="flex-grow space-y-8">
+        <div className="flex-grow space-y-6 min-w-0">
 
-          
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
+             <div className="glass-card p-5 bg-gradient-to-br from-purple-500/5 to-transparent">
 
-             <div className="glass-card p-6 bg-gradient-to-br from-purple-500/5 to-transparent">
+                <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400 mb-3">
 
-                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-4">
-
-                   <BookOpen className="w-5 h-5" />
+                   <BookOpen className="w-4 h-4" />
 
                 </div>
 
-                <div className="text-2xl font-bold">{currentUser.exchanges}</div>
+                <div className="text-xl font-bold">{currentUser?.exchanges ?? 0}</div>
 
-                <div className="text-sm text-slate-400">Lessons Taught</div>
+                <div className="text-xs text-slate-400 mt-0.5">Lessons Taught</div>
 
              </div>
 
-             <div className="glass-card p-6 bg-gradient-to-br from-blue-500/5 to-transparent">
+             <button
 
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 mb-4">
+                onClick={() => navigate('/chat')}
 
-                   <Clock className="w-5 h-5" />
+                className="glass-card p-5 bg-gradient-to-br from-blue-500/5 to-transparent text-left hover:from-blue-500/10 transition-colors"
+
+             >
+
+                <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 mb-3">
+
+                   <MessageCircle className="w-4 h-4" />
 
                 </div>
 
-                <div className="text-2xl font-bold">0h</div>
+                <div className="text-xl font-bold">{messageCount}</div>
 
-                <div className="text-sm text-slate-400">Total Learning Time</div>
+                <div className="text-xs text-slate-400 mt-0.5">Messages Sent</div>
 
-             </div>
+             </button>
 
-             <div className="glass-card p-6 bg-gradient-to-br from-green-500/5 to-transparent">
+             <button
 
-                <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-400 mb-4">
+                onClick={() => navigate('/requests')}
 
-                   <Plus className="w-5 h-5" />
+                className="glass-card p-5 bg-gradient-to-br from-green-500/5 to-transparent text-left hover:from-green-500/10 transition-colors"
+
+             >
+
+                <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 mb-3">
+
+                   <UserPlus className="w-4 h-4" />
 
                 </div>
 
-                <div className="text-2xl font-bold">0</div>
+                <div className="text-xl font-bold">{pendingCount}</div>
 
-                <div className="text-sm text-slate-400">Pending Requests</div>
+                <div className="text-xs text-slate-400 mt-0.5">Pending Requests</div>
 
-             </div>
+             </button>
 
           </div>
 
+          <div className="glass-card p-6">
 
+            <div className="flex items-center justify-between mb-5">
 
-          <div className="glass-card p-8">
-
-            <div className="flex items-center justify-between mb-8">
-
-              <h3 className="text-xl font-bold">My Active Skills</h3>
+              <h3 className="text-lg font-bold">My Active Skills</h3>
 
               <button 
 
@@ -530,61 +532,65 @@ export default function Dashboard() {
 
             </div>
 
-            {currentUser.skills.length > 0 ? (
+            {(currentUser.skills?.length ?? 0) > 0 ? (
 
-              <div className="space-y-4">
+              <div className="space-y-3">
 
-                {currentUser.skills.map((skill) => (
+                {(currentUser.skills || []).map((skill: any) => (
 
-                  <div key={skill.id} className="flex items-center justify-between p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all group">
+                  <div key={skill.id} className="flex items-center justify-between p-3 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] transition-all group gap-3">
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
 
-                      <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center font-bold text-slate-500">
+                      <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center font-bold text-slate-400 text-sm flex-shrink-0">
 
                         {skill.title.charAt(0).toUpperCase()}{skill.title.split(' ').length > 1 ? skill.title.split(' ')[1].charAt(0).toUpperCase() : ''}
 
                       </div>
 
-                      <div>
+                      <div className="min-w-0 flex-1">
 
-                        <div className="font-bold text-white group-hover:text-purple-400 transition-colors">{skill.title}</div>
+                        <div className="font-semibold text-white group-hover:text-purple-400 transition-colors text-sm truncate">{skill.title}</div>
 
-                        <div className="text-xs text-slate-500 uppercase tracking-widest">{skill.category}</div>
+                        <div className="text-[10px] text-slate-500 uppercase tracking-wider">{skill.category}</div>
 
-                        <div className="text-sm text-slate-400 mt-1">{skill.description}</div>
+                        {skill.description && (
+
+                          <div className="text-xs text-slate-400 mt-0.5 line-clamp-1">{skill.description}</div>
+
+                        )}
 
                       </div>
 
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-shrink-0">
 
-                      <button 
+                      <button
 
                         onClick={() => handleEditSkill(skill)}
 
-                        className="text-slate-500 hover:text-white transition-colors"
+                        className="p-1.5 rounded text-slate-500 hover:text-white hover:bg-white/5 transition-colors"
 
                         title="Edit skill"
 
                       >
 
-                         <Edit className="w-4 h-4" />
+                         <Edit className="w-3.5 h-3.5" />
 
                       </button>
 
-                      <button 
+                      <button
 
                         onClick={() => handleDeleteSkill(skill.id)}
 
-                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-white/5 transition-colors"
 
                         title="Delete skill"
 
                       >
 
-                         <Trash2 className="w-4 h-4" />
+                         <Trash2 className="w-3.5 h-3.5" />
 
                       </button>
 
@@ -598,27 +604,27 @@ export default function Dashboard() {
 
             ) : (
 
-              <div className="text-center py-12">
+              <div className="text-center py-8">
 
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-3">
 
-                  <Plus className="w-8 h-8 text-purple-400" />
+                  <Plus className="w-7 h-7 text-purple-400" />
 
                 </div>
 
-                <h4 className="text-lg font-semibold text-white mb-2">No skills added yet</h4>
+                <h4 className="text-base font-semibold text-white mb-1">No skills added yet</h4>
 
-                <p className="text-slate-400 mb-6">Add your first skill to start swapping expertise</p>
+                <p className="text-slate-400 text-sm mb-5">Add your first skill to start swapping expertise</p>
 
-                <button 
+                <button
 
                   onClick={handleAddSkill}
 
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-violet-600 text-white text-sm font-medium rounded-lg hover:from-purple-400 hover:to-violet-500 transition-all"
 
                 >
 
-                  <Plus className="w-5 h-5" />
+                  <Plus className="w-4 h-4" />
 
                   Add Your First Skill
 
@@ -630,45 +636,37 @@ export default function Dashboard() {
 
           </div>
 
+          <div className="glass-card p-6">
 
+            <h3 className="text-lg font-bold mb-5">Recent Activity</h3>
 
-          <div className="glass-card p-8">
+            {(currentUser.exchanges ?? 0) > 0 ? (
 
-            <h3 className="text-xl font-bold mb-8">Recent Activity</h3>
+              <div className="text-center py-6">
 
-            {currentUser.exchanges > 0 ? (
-
-              <div className="space-y-8">
-
-                {/* Show real activity when user has exchanges */}
-
-                <div className="text-center py-8">
-
-                  <div className="text-slate-400">Activity will appear here as you start swapping!</div>
-
-                </div>
+                <div className="text-slate-400 text-sm">Activity will appear here as you start swapping.</div>
 
               </div>
 
             ) : (
 
-              <div className="text-center py-12">
+              <div className="text-center py-6">
 
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-6">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500/20 to-violet-500/20 flex items-center justify-center mx-auto mb-3">
 
-                  <User className="w-8 h-8 text-purple-400" />
+                  <User className="w-7 h-7 text-purple-400" />
 
                 </div>
 
-                <h4 className="text-lg font-semibold text-white mb-2">No recent activity yet</h4>
+                <h4 className="text-base font-semibold text-white mb-1">No recent activity yet</h4>
 
-                <p className="text-slate-400 mb-6">Start exploring to find a swap partner!</p>
+                <p className="text-slate-400 text-sm mb-5">Start exploring to find a swap partner.</p>
 
-                <Link 
+                <Link
 
-                  to="/explore" 
+                  to="/explore"
 
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-violet-600 text-white rounded-xl hover:from-purple-400 hover:to-violet-500 transition-all"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500 to-violet-600 text-white text-sm font-medium rounded-lg hover:from-purple-400 hover:to-violet-500 transition-all"
 
                 >
 
